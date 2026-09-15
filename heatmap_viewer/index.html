@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Player Heatmaps 23/24</title>
+<style>
+  :root {
+    --bg: #111111;
+    --panel: #1c1c1c;
+    --border: #2c2c2c;
+    --text: #ececec;
+    --muted: #8c8c8c;
+    --line: rgba(255, 255, 255, 0.2);
+    --c1: #22b466; /* count 1 – green  */
+    --c2: #f2d13a; /* count 2 – yellow */
+    --c3: #f28e2b; /* count 3 – orange */
+    --c4: #e3342f; /* count 4+ – red   */
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 24px 16px;
+  }
+  main { max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 4px; font-weight: 600; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+
+  .controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  select, input, button {
+    font: inherit;
+    color: var(--text);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+  }
+  button { cursor: pointer; }
+
+  .search { position: relative; display: flex; flex-direction: column; gap: 4px; }
+  .search label { display: block; }
+  .suggestions {
+    position: absolute; top: 100%; left: 0; right: 0; z-index: 10;
+    margin: 4px 0 0; padding: 4px; list-style: none;
+    background: #242424; border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    max-height: 320px; overflow-y: auto;
+  }
+  .suggestions li { padding: 7px 10px; border-radius: 6px; cursor: pointer; }
+  .suggestions li[aria-selected="true"] { background: #333; }
+  .suggestions .s-name { color: var(--text); }
+  .suggestions .s-meta { color: var(--muted); font-size: 12px; }
+  .suggestions .s-empty { color: var(--muted); cursor: default; }
+  button:hover { border-color: var(--muted); }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .player-name { font-size: 22px; font-weight: 600; }
+  .player-meta { color: var(--muted); }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .toggle button { border: 0; border-radius: 0; background: transparent; color: var(--muted); }
+  .toggle button[aria-pressed="true"] { background: #2e2e2e; color: var(--text); }
+
+  .stats { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 12px; }
+  .stat .v { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stat .k { font-size: 12px; color: var(--muted); }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+  .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; color: var(--muted); font-size: 12px; margin-bottom: 10px; }
+  .ramp {
+    width: 140px; height: 8px; border-radius: 4px;
+    background: linear-gradient(90deg, transparent, var(--c1) 30%, var(--c2) 55%, var(--c3) 75%, var(--c4));
+  }
+
+  .pitch-wrap { overflow-x: auto; }
+  svg.pitch { display: block; width: 100%; min-width: 520px; height: auto; }
+  .direction { text-align: center; color: var(--muted); font-size: 12px; margin-top: 6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Player Heatmaps · 2023/24</h1>
+  <p class="sub">Players with 1000+ minutes.</p>
+
+  <div class="controls">
+    <div class="search">
+      <label for="search">Search player</label>
+      <input id="search" type="search" placeholder="e.g. Bukayo Saka" autocomplete="off"
+             role="combobox" aria-expanded="false" aria-controls="suggestions" aria-autocomplete="list">
+      <ul id="suggestions" class="suggestions" role="listbox" hidden></ul>
+    </div>
+    <label>League <select id="league"></select></label>
+    <label>Team <select id="team"></select></label>
+    <label>Player <select id="player"></select></label>
+  </div>
+
+  <div class="card">
+    <div class="head">
+      <div>
+        <div class="player-name" id="name">–</div>
+        <div class="player-meta" id="meta"></div>
+      </div>
+      <div class="actions">
+        <div class="toggle" role="group" aria-label="Heatmap style">
+          <button id="mode-smooth" data-mode="smooth">Smooth</button>
+          <button id="mode-grid" data-mode="grid">Grid</button>
+        </div>
+        <button id="prev" title="Previous player (←)">← Prev</button>
+        <button id="next" title="Next player (→)">Next →</button>
+      </div>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="legend" id="legend"></div>
+    <div class="pitch-wrap">
+      <svg class="pitch" id="pitch" viewBox="-3 -3 111 74" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+    <div class="direction">Attacking direction →</div>
+  </div>
+</main>
+
+<script>
+const LEAGUES = {
+  premierleague: "Premier League",
+  laliga: "La Liga",
+  seriea: "Serie A",
+  bundesliga: "Bundesliga",
+  ligue1: "Ligue 1",
+  superlig: "Süper Lig",
+};
+const PITCH_W = 105, PITCH_H = 68, GRID = 101; // data coords are 0–100 inclusive
+const COLOR_VARS = ["--c1", "--c2", "--c3", "--c4"];
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+// Smooth mode: density raster at 5 px per metre, Gaussian blob per point
+const HEAT_W = 525, HEAT_H = 340;
+const SIGMA_M = 2.5;
+const HEAT_PERCENTILE = 0.99;
+
+const $ = (id) => document.getElementById(id);
+const titleCase = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+const leagueName = (l) => LEAGUES[l] || titleCase(l);
+const playerName = (p) => `${p.first_name} ${p.last_name}`.trim() || titleCase(p.player);
+const normalize = (s) => s.normalize("NFD").replace(/[̀-ͯ']/g, "").toLowerCase();
+const cssColor = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+let players = [];
+let filtered = [];
+let current = null; // { player, points }
+let mode = "smooth";
+try { mode = localStorage.getItem("heatmap-mode") || mode; } catch {}
+
+function setOptions(select, values, labelFn, allLabel) {
+  const prev = select.value;
+  select.innerHTML = "";
+  if (allLabel) select.add(new Option(allLabel, ""));
+  for (const v of values) select.add(new Option(labelFn(v), v));
+  if ([...select.options].some((o) => o.value === prev)) select.value = prev;
+}
+
+// `selected` (optional): a player to jump to — league/team filters follow it
+function refreshFilters(selected) {
+  if (selected) $("league").value = selected.league;
+  const league = $("league").value;
+  const teams = [...new Set(players.filter((p) => !league || p.league === league).map((p) => p.team))].sort();
+  setOptions($("team"), teams, titleCase, "All teams");
+  if (selected) $("team").value = selected.team;
+  const team = $("team").value;
+
+  filtered = players.filter((p) => (!league || p.league === league) && (!team || p.team === team));
+  setOptions($("player"), filtered.map((p) => p.file),
+    (f) => { const p = filtered.find((x) => x.file === f); return `${playerName(p)} (${titleCase(p.team)})`; });
+  const file = selected?.file || $("player").value || filtered[0]?.file;
+  if (file) loadPlayer(file);
+  else showStatus("No players match.");
+}
+
+// --- search autocomplete ---
+const MAX_SUGGESTIONS = 10;
+let suggestions = [];
+let activeSuggestion = -1;
+
+function searchPlayers(query) {
+  // every typed word must appear in the player's name, e.g. "de bruyne", "saka"
+  const words = normalize(query).split(/[^a-z0-9]+/).filter(Boolean);
+  if (!words.length) return [];
+  return players
+    .filter((p) => words.every((w) => p.searchName.includes(w)))
+    // names starting with the typed text first
+    .sort((a, b) => b.searchName.startsWith(words[0]) - a.searchName.startsWith(words[0]))
+    .slice(0, MAX_SUGGESTIONS);
+}
+
+function renderSuggestions() {
+  const list = $("suggestions");
+  const query = $("search").value.trim();
+  suggestions = searchPlayers(query);
+  activeSuggestion = suggestions.length ? 0 : -1;
+  list.innerHTML = "";
+  if (!query) return closeSuggestions();
+  if (!suggestions.length) {
+    list.innerHTML = `<li class="s-empty">No players found</li>`;
+  }
+  suggestions.forEach((p, i) => {
+    const li = document.createElement("li");
+    li.role = "option";
+    li.id = `suggestion-${i}`;
+    li.innerHTML = `<div class="s-name"></div><div class="s-meta"></div>`;
+    li.querySelector(".s-name").textContent = playerName(p);
+    li.querySelector(".s-meta").textContent = `${titleCase(p.team)} · ${leagueName(p.league)}`;
+    // mousedown (not click) so the input's blur doesn't close the list first
+    li.addEventListener("mousedown", (e) => { e.preventDefault(); chooseSuggestion(i); });
+    li.addEventListener("mousemove", () => highlightSuggestion(i));
+    list.appendChild(li);
+  });
+  list.hidden = false;
+  $("search").setAttribute("aria-expanded", "true");
+  highlightSuggestion(activeSuggestion);
+}
+
+function highlightSuggestion(i) {
+  activeSuggestion = i;
+  [...$("suggestions").children].forEach((li, j) => li.setAttribute("aria-selected", j === i));
+  const active = $(`suggestion-${i}`);
+  if (active) {
+    active.scrollIntoView({ block: "nearest" });
+    $("search").setAttribute("aria-activedescendant", active.id);
+  }
+}
+
+function closeSuggestions() {
+  $("suggestions").hidden = true;
+  $("search").setAttribute("aria-expanded", "false");
+  $("search").removeAttribute("aria-activedescendant");
+}
+
+function chooseSuggestion(i) {
+  const p = suggestions[i];
+  if (!p) return;
+  $("search").value = playerName(p);
+  closeSuggestions();
+  refreshFilters(p);
+}
+
+function onSearchKeydown(e) {
+  const open = !$("suggestions").hidden;
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    if (!open) return renderSuggestions();
+    if (!suggestions.length) return;
+    const dir = e.key === "ArrowDown" ? 1 : -1;
+    highlightSuggestion((activeSuggestion + dir + suggestions.length) % suggestions.length);
+  } else if (e.key === "Enter" && open) {
+    e.preventDefault();
+    chooseSuggestion(activeSuggestion);
+  } else if (e.key === "Escape") {
+    closeSuggestions();
+  }
+}
+
+function el(tag, attrs, parent) {
+  const node = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  parent.appendChild(node);
+  return node;
+}
+
+function drawPitch() {
+  const svg = $("pitch");
+  svg.innerHTML = "";
+  const clip = el("clipPath", { id: "pitch-clip" }, el("defs", {}, svg));
+  el("rect", { x: 0, y: 0, width: PITCH_W, height: PITCH_H, rx: 1.5 }, clip);
+  const heat = el("g", { "clip-path": "url(#pitch-clip)" }, svg);
+
+  const lines = el("g", { fill: "none", stroke: "var(--line)", "stroke-width": 0.35 }, svg);
+  const midY = PITCH_H / 2;
+  el("rect", { x: 0, y: 0, width: PITCH_W, height: PITCH_H, rx: 1.5 }, lines);
+  el("line", { x1: PITCH_W / 2, y1: 0, x2: PITCH_W / 2, y2: PITCH_H }, lines);
+  el("circle", { cx: PITCH_W / 2, cy: midY, r: 9.15 }, lines);
+  for (const side of [0, 1]) {
+    const x = (d) => (side ? PITCH_W - d : d);
+    const box = (depth, width) =>
+      el("rect", { x: Math.min(x(0), x(depth)), y: midY - width / 2, width: depth, height: width }, lines);
+    box(16.5, 40.32);
+    box(5.5, 18.32);
+    // penalty arc: part of 9.15m circle around the spot outside the box
+    const dy = Math.sqrt(9.15 ** 2 - 5.5 ** 2);
+    el("path", { d: `M ${x(16.5)} ${midY - dy} A 9.15 9.15 0 0 ${side ? 0 : 1} ${x(16.5)} ${midY + dy}` }, lines);
+  }
+  return heat;
+}
+
+function showStatus(msg) {
+  current = null;
+  $("name").textContent = "–";
+  $("meta").textContent = "";
+  $("stats").innerHTML = "";
+  drawPitch();
+  el("text", { x: PITCH_W / 2, y: PITCH_H / 2, "text-anchor": "middle", fill: "var(--muted)", "font-size": 3 }, $("pitch"))
+    .textContent = msg;
+}
+
+// y=0 is the player's right touchline; attacking left→right puts it at the bottom
+const toPitchX = (x) => (x / GRID) * PITCH_W;
+const toPitchY = (y) => ((100 - y) / GRID) * PITCH_H;
+
+function drawGrid(heat, points) {
+  const cw = PITCH_W / GRID, ch = PITCH_H / GRID;
+  const frag = document.createDocumentFragment();
+  // draw low counts first so red sits on top
+  for (const p of [...points].sort((a, b) => a.count - b.count)) {
+    const r = document.createElementNS(SVG_NS, "rect");
+    r.setAttribute("x", toPitchX(p.x));
+    r.setAttribute("y", toPitchY(p.y));
+    r.setAttribute("width", cw);
+    r.setAttribute("height", ch);
+    r.setAttribute("fill", `var(${COLOR_VARS[Math.min(p.count, 4) - 1]})`);
+    const t = document.createElementNS(SVG_NS, "title");
+    t.textContent = `x ${p.x}, y ${p.y} · count ${p.count}`;
+    r.appendChild(t);
+    frag.appendChild(r);
+  }
+  heat.appendChild(frag);
+}
+
+// 256-entry colour ramp: transparent → green → yellow → orange → red
+function buildRamp() {
+  const hex = (v) => cssColor(v).match(/\w\w/g).map((h) => parseInt(h, 16));
+  const stops = [[0.0, hex("--c1")], [0.4, hex("--c1")], [0.6, hex("--c2")], [0.78, hex("--c3")], [0.95, hex("--c4")], [1, hex("--c4")]];
+  const ramp = new Uint8ClampedArray(256 * 4);
+  for (let i = 0; i < 256; i++) {
+    const t = i / 255;
+    const j = stops.findIndex(([s]) => s >= t);
+    const [s1, c1] = stops[Math.max(j - 1, 0)], [s2, c2] = stops[j];
+    const f = s2 === s1 ? 0 : (t - s1) / (s2 - s1);
+    for (let k = 0; k < 3; k++) ramp[i * 4 + k] = c1[k] + (c2[k] - c1[k]) * f;
+    // fade in low densities so sparse areas stay dark, like FotMob
+    const a = Math.min(Math.max((t - 0.06) / 0.3, 0), 1);
+    ramp[i * 4 + 3] = 235 * a * a * (3 - 2 * a);
+  }
+  return ramp;
+}
+
+function drawSmooth(heat, points) {
+  const pxPerM = HEAT_W / PITCH_W;
+  const sigma = SIGMA_M * pxPerM, r = Math.ceil(sigma * 3), size = 2 * r + 1;
+  const kernel = new Float32Array(size * size);
+  for (let dy = -r; dy <= r; dy++)
+    for (let dx = -r; dx <= r; dx++)
+      kernel[(dy + r) * size + dx + r] = Math.exp(-(dx * dx + dy * dy) / (2 * sigma * sigma));
+
+  const field = new Float32Array(HEAT_W * HEAT_H);
+  for (const p of points) {
+    const cx = Math.round((toPitchX(p.x + 0.5) / PITCH_W) * HEAT_W);
+    const cy = Math.round((toPitchY(p.y - 0.5) / PITCH_H) * HEAT_H);
+    for (let dy = -r; dy <= r; dy++) {
+      const py = cy + dy;
+      if (py < 0 || py >= HEAT_H) continue;
+      for (let dx = -r; dx <= r; dx++) {
+        const px = cx + dx;
+        if (px < 0 || px >= HEAT_W) continue;
+        field[py * HEAT_W + px] += p.count * kernel[(dy + r) * size + dx + r];
+      }
+    }
+  }
+
+  // scale to a high percentile rather than the single hottest pixel, so one hotspot
+  // doesn't wash out the rest of the map
+  let peak = 0;
+  for (const v of field) if (v > peak) peak = v;
+  const active = field.filter((v) => v > peak * 0.02).sort();
+  const max = active.length ? active[Math.floor(active.length * HEAT_PERCENTILE)] : 0;
+  const ramp = buildRamp();
+  const canvas = document.createElement("canvas");
+  canvas.width = HEAT_W;
+  canvas.height = HEAT_H;
+  const ctx = canvas.getContext("2d");
+  const img = ctx.createImageData(HEAT_W, HEAT_H);
+  for (let i = 0; i < field.length; i++) {
+    const idx = max ? Math.round(Math.min(field[i] / max, 1) * 255) * 4 : 0;
+    img.data.set(ramp.subarray(idx, idx + 4), i * 4);
+  }
+  ctx.putImageData(img, 0, 0);
+  el("image", { href: canvas.toDataURL(), x: 0, y: 0, width: PITCH_W, height: PITCH_H, preserveAspectRatio: "none" }, heat);
+}
+
+function render() {
+  for (const b of document.querySelectorAll(".toggle button")) b.setAttribute("aria-pressed", b.dataset.mode === mode);
+  $("legend").innerHTML = mode === "grid"
+    ? COLOR_VARS.map((v, i) => `<span><span class="swatch" style="background:var(${v})"></span>count ${i + 1}${i === 3 ? "+" : ""}</span>`).join("")
+    : `<span>Low</span><span class="ramp"></span><span>High</span>`;
+  if (!current) return;
+  const heat = drawPitch();
+  (mode === "grid" ? drawGrid : drawSmooth)(heat, current.points);
+}
+
+function parseCsv(text) {
+  const [header, ...rows] = text.trim().split("\n");
+  const cols = header.split(",");
+  return rows.map((line) => {
+    const vals = line.split(",").map(Number);
+    return Object.fromEntries(cols.map((c, i) => [c, vals[i]]));
+  });
+}
+
+let loadToken = 0;
+async function loadPlayer(file) {
+  const token = ++loadToken;
+  $("player").value = file;
+  const p = players.find((x) => x.file === file);
+  const res = await fetch(`/data/${encodeURIComponent(file)}`);
+  const points = parseCsv(await res.text());
+  if (token !== loadToken) return;
+  current = { player: p, points };
+
+  $("name").textContent = playerName(p);
+  $("meta").textContent = `${titleCase(p.team)} · ${leagueName(p.league)}`;
+
+  const n = [0, 0, 0, 0];
+  for (const pt of points) n[Math.min(pt.count, 4) - 1]++;
+  const stat = (v, k, colorVar) =>
+    `<div class="stat"><div class="v">${v.toLocaleString()}</div><div class="k">${colorVar ? `<span class="swatch" style="background:var(${colorVar})"></span>` : ""}${k}</div></div>`;
+  $("stats").innerHTML =
+    stat(p.season_minutes, "season minutes") +
+    stat(points.length, "grid points") +
+    n.map((c, i) => stat(c, `count ${i + 1}${i === 3 ? "+" : ""}`, COLOR_VARS[i])).join("");
+
+  render();
+}
+
+function step(dir) {
+  if (!filtered.length) return;
+  const i = filtered.findIndex((p) => p.file === $("player").value);
+  loadPlayer(filtered[(i + dir + filtered.length) % filtered.length].file);
+}
+
+async function init() {
+  try {
+    const res = await fetch("/api/players");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    players = await res.json();
+  } catch (err) {
+    console.error("Failed to load /api/players:", err);
+    return showStatus("Couldn't load players. Try restarting the server.");
+  }
+  players = players
+    .map((p) => ({ ...p, searchName: normalize(`${p.first_name} ${p.last_name}`) }))
+    .sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
+  const leagues = Object.keys(LEAGUES).filter((l) => players.some((p) => p.league === l));
+  setOptions($("league"), leagues, leagueName, "All leagues");
+  $("league").addEventListener("change", () => { $("team").value = ""; refreshFilters(); });
+  $("team").addEventListener("change", () => refreshFilters());
+  $("search").addEventListener("input", renderSuggestions);
+  $("search").addEventListener("focus", () => $("search").value.trim() && renderSuggestions());
+  $("search").addEventListener("keydown", onSearchKeydown);
+  $("search").addEventListener("blur", closeSuggestions);
+  $("player").addEventListener("change", (e) => loadPlayer(e.target.value));
+  $("prev").addEventListener("click", () => step(-1));
+  $("next").addEventListener("click", () => step(1));
+  for (const b of document.querySelectorAll(".toggle button")) {
+    b.addEventListener("click", () => {
+      mode = b.dataset.mode;
+      try { localStorage.setItem("heatmap-mode", mode); } catch {}
+      render();
+    });
+  }
+  document.addEventListener("keydown", (e) => {
+    if (e.target.matches("input, select")) return;
+    if (e.key === "ArrowLeft") step(-1);
+    if (e.key === "ArrowRight") step(1);
+  });
+  refreshFilters();
+}
+
+render();
+showStatus("Loading…");
+init();
+</script>
+</body>
+</html>
