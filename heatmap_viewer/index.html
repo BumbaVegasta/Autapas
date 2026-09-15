@@ -163,7 +163,7 @@ const $ = (id) => document.getElementById(id);
 const titleCase = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const leagueName = (l) => LEAGUES[l] || titleCase(l);
 const playerName = (p) => `${p.first_name} ${p.last_name}`.trim() || titleCase(p.player);
-const normalize = (s) => s.normalize("NFD").replace(/[̀-ͯ']/g, "").toLowerCase();
+const normalize = (s) => s.normalize("NFD").replace(/[\u0300-\u036f']/g, "").toLowerCase();
 const cssColor = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 
 let players = [];
@@ -184,14 +184,15 @@ function setOptions(select, values, labelFn, allLabel) {
 function refreshFilters(selected) {
   if (selected) $("league").value = selected.league;
   const league = $("league").value;
-  const teams = [...new Set(players.filter((p) => !league || p.league === league).map((p) => p.team))].sort();
-  setOptions($("team"), teams, titleCase, "All teams");
+  const teamNames = new Map(players.filter((p) => !league || p.league === league).map((p) => [p.team, p.team_name]));
+  const teams = [...teamNames.keys()].sort((a, b) => teamNames.get(a).localeCompare(teamNames.get(b)));
+  setOptions($("team"), teams, (t) => teamNames.get(t), "All teams");
   if (selected) $("team").value = selected.team;
   const team = $("team").value;
 
   filtered = players.filter((p) => (!league || p.league === league) && (!team || p.team === team));
   setOptions($("player"), filtered.map((p) => p.file),
-    (f) => { const p = filtered.find((x) => x.file === f); return `${playerName(p)} (${titleCase(p.team)})`; });
+    (f) => { const p = filtered.find((x) => x.file === f); return `${playerName(p)} (${p.team_name})`; });
   const file = selected?.file || $("player").value || filtered[0]?.file;
   if (file) loadPlayer(file);
   else showStatus("No players match.");
@@ -229,7 +230,7 @@ function renderSuggestions() {
     li.id = `suggestion-${i}`;
     li.innerHTML = `<div class="s-name"></div><div class="s-meta"></div>`;
     li.querySelector(".s-name").textContent = playerName(p);
-    li.querySelector(".s-meta").textContent = `${titleCase(p.team)} · ${leagueName(p.league)}`;
+    li.querySelector(".s-meta").textContent = `${p.team_name} · ${leagueName(p.league)}`;
     // mousedown (not click) so the input's blur doesn't close the list first
     li.addEventListener("mousedown", (e) => { e.preventDefault(); chooseSuggestion(i); });
     li.addEventListener("mousemove", () => highlightSuggestion(i));
@@ -436,7 +437,7 @@ async function loadPlayer(file) {
   current = { player: p, points };
 
   $("name").textContent = playerName(p);
-  $("meta").textContent = `${titleCase(p.team)} · ${leagueName(p.league)}`;
+  $("meta").textContent = `${p.team_name} · ${leagueName(p.league)}`;
 
   const n = [0, 0, 0, 0];
   for (const pt of points) n[Math.min(pt.count, 4) - 1]++;

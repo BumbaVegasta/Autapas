@@ -13,6 +13,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DATA_ROOT = os.path.join(HERE, "..", "data")
 DATA_DIR = os.path.join(DATA_ROOT, "heatmaps_1000plus_minutes_2324_raw_data")
 PLAYERS_FILE = os.path.join(DATA_ROOT, "players.csv")
+TEAMS_FILE = os.path.join(DATA_ROOT, "teams.csv")
 SUFFIX = "_heatmap_2324_raw_data.csv"
 PORT = int(os.environ.get("PORT", 8000))
 
@@ -20,8 +21,11 @@ PORT = int(os.environ.get("PORT", 8000))
 def list_players():
     with open(PLAYERS_FILE, newline="") as f:
         rows = list(csv.DictReader(f))
+    with open(TEAMS_FILE, newline="") as f:
+        team_names = {t["team"]: t["team_name"] for t in csv.DictReader(f)}
     return [{
         **row,
+        "team_name": team_names.get(row["team"], row["team"]),
         "player": row["player_id"].split("_", 2)[2],
         "season_minutes": int(row["season_minutes"]),
         "file": row["player_id"] + SUFFIX,
