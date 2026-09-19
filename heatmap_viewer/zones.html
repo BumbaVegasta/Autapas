@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pitch zones</title>
+<style>
+  :root { --bg:#111; --panel:#1c1c1c; --border:#2c2c2c; --text:#ececec; --muted:#8c8c8c; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); padding:24px 16px;
+         font:14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:1100px; margin:0 auto; }
+  h1 { font-size:20px; margin:0 0 4px; font-weight:600; }
+  .sub { color:var(--muted); margin:0 0 20px; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:16px; }
+  .head { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .toggles { display:flex; gap:16px; color:var(--muted); font-size:12px; }
+  .toggles label { display:flex; gap:6px; align-items:center; cursor:pointer; }
+  .pitch-wrap { overflow-x:auto; }
+  svg.pitch { display:block; width:100%; min-width:640px; height:auto; }
+  .zone { stroke:rgba(255,255,255,.35); stroke-width:.12; }
+  .t-defensive { fill:#2f6fd0; fill-opacity:.18; }
+  .t-middle    { fill:#f2b53a; fill-opacity:.18; }
+  .t-attacking { fill:#e3342f; fill-opacity:.2; }
+  .zone:hover  { fill-opacity:.45; }
+  .lines { fill:none; stroke:rgba(255,255,255,.45); stroke-width:.3; }
+  .zlabel { fill:#fff; text-anchor:middle; dominant-baseline:middle; font-family:inherit;
+            pointer-events:none; font-weight:600; }
+  .l-area { fill:rgba(255,255,255,.55); font-weight:400; }
+  body.no-labels .zlabel, body.no-areas .l-area { display:none; }
+  .direction { text-align:center; color:var(--muted); font-size:12px; margin-top:6px; }
+  table { border-collapse:collapse; width:100%; margin-top:16px; font-size:13px; }
+  th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--border); }
+  th { color:var(--muted); font-weight:500; font-size:12px; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:7px; vertical-align:-1px; }
+  .notes { color:var(--muted); font-size:13px; margin-top:14px; }
+  .notes li { margin-bottom:5px; }
+  code { background:#242424; border-radius:4px; padding:1px 5px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Pitch zones for heatmap comparison</h1>
+  <p class="sub">51 zones. They shrink towards the goal being attacked, from
+     460 m² at the back to 50 m² in the box — 9.1× more precision where it matters.</p>
+
+  <div class="card">
+    <div class="head">
+      <div class="toggles">
+        <label><input type="checkbox" id="labels" checked> Zone names</label>
+        <label><input type="checkbox" id="areas" checked> Areas</label>
+      </div>
+      <div style="color:var(--muted);font-size:12px">Hover a zone for its size</div>
+    </div>
+    <div class="pitch-wrap">
+      <svg class="pitch" viewBox="-2 -2 109 72" xmlns="http://www.w3.org/2000/svg">
+    <rect class="zone t-defensive" x="0" y="43.16" width="16.5" height="24.84"><title>0 · D1-R · 16.5 × 24.84 m = 410 m²</title></rect>
+    <rect class="zone t-defensive" x="0" y="24.84" width="16.5" height="18.32"><title>1 · D1-C · 16.5 × 18.32 m = 302 m²</title></rect>
+    <rect class="zone t-defensive" x="0" y="0" width="16.5" height="24.84"><title>2 · D1-L · 16.5 × 24.84 m = 410 m²</title></rect>
+    <rect class="zone t-defensive" x="16.5" y="43.16" width="18.5" height="24.84"><title>3 · D2-R · 18.5 × 24.84 m = 460 m²</title></rect>
+    <rect class="zone t-defensive" x="16.5" y="24.84" width="18.5" height="18.32"><title>4 · D2-C · 18.5 × 18.32 m = 339 m²</title></rect>
+    <rect class="zone t-defensive" x="16.5" y="0" width="18.5" height="24.84"><title>5 · D2-L · 18.5 × 24.84 m = 460 m²</title></rect>
+    <rect class="zone t-middle" x="35" y="54.16" width="17.5" height="13.84"><title>6 · M1-R · 17.5 × 13.84 m = 242 m²</title></rect>
+    <rect class="zone t-middle" x="35" y="43.16" width="17.5" height="11"><title>7 · M1-RH · 17.5 × 11 m = 192 m²</title></rect>
+    <rect class="zone t-middle" x="35" y="24.84" width="17.5" height="18.32"><title>8 · M1-C · 17.5 × 18.32 m = 321 m²</title></rect>
+    <rect class="zone t-middle" x="35" y="13.84" width="17.5" height="11"><title>9 · M1-LH · 17.5 × 11 m = 192 m²</title></rect>
+    <rect class="zone t-middle" x="35" y="0" width="17.5" height="13.84"><title>10 · M1-L · 17.5 × 13.84 m = 242 m²</title></rect>
+    <rect class="zone t-middle" x="52.5" y="54.16" width="10.5" height="13.84"><title>11 · M2-R · 10.5 × 13.84 m = 145 m²</title></rect>
+    <rect class="zone t-middle" x="52.5" y="43.16" width="10.5" height="11"><title>12 · M2-RH · 10.5 × 11 m = 116 m²</title></rect>
+    <rect class="zone t-middle" x="52.5" y="24.84" width="10.5" height="18.32"><title>13 · M2-C · 10.5 × 18.32 m = 192 m²</title></rect>
+    <rect class="zone t-middle" x="52.5" y="13.84" width="10.5" height="11"><title>14 · M2-LH · 10.5 × 11 m = 116 m²</title></rect>
+    <rect class="zone t-middle" x="52.5" y="0" width="10.5" height="13.84"><title>15 · M2-L · 10.5 × 13.84 m = 145 m²</title></rect>
+    <rect class="zone t-middle" x="63" y="54.16" width="9" height="13.84"><title>16 · M3-R · 9 × 13.84 m = 125 m²</title></rect>
+    <rect class="zone t-middle" x="63" y="43.16" width="9" height="11"><title>17 · M3-RH · 9 × 11 m = 99 m²</title></rect>
+    <rect class="zone t-middle" x="63" y="24.84" width="9" height="18.32"><title>18 · M3-C · 9 × 18.32 m = 165 m²</title></rect>
+    <rect class="zone t-middle" x="63" y="13.84" width="9" height="11"><title>19 · M3-LH · 9 × 11 m = 99 m²</title></rect>
+    <rect class="zone t-middle" x="63" y="0" width="9" height="13.84"><title>20 · M3-L · 9 × 13.84 m = 125 m²</title></rect>
+    <rect class="zone t-attacking" x="72" y="54.16" width="8.5" height="13.84"><title>21 · A1-R · 8.5 × 13.84 m = 118 m²</title></rect>
+    <rect class="zone t-attacking" x="72" y="43.16" width="8.5" height="11"><title>22 · A1-RH · 8.5 × 11 m = 94 m²</title></rect>
+    <rect class="zone t-attacking" x="72" y="34" width="8.5" height="9.16"><title>23 · A1-RC · 8.5 × 9.16 m = 78 m²</title></rect>
+    <rect class="zone t-attacking" x="72" y="24.84" width="8.5" height="9.16"><title>24 · A1-LC · 8.5 × 9.16 m = 78 m²</title></rect>
+    <rect class="zone t-attacking" x="72" y="13.84" width="8.5" height="11"><title>25 · A1-LH · 8.5 × 11 m = 94 m²</title></rect>
+    <rect class="zone t-attacking" x="72" y="0" width="8.5" height="13.84"><title>26 · A1-L · 8.5 × 13.84 m = 118 m²</title></rect>
+    <rect class="zone t-attacking" x="80.5" y="54.16" width="8" height="13.84"><title>27 · A2-R · 8 × 13.84 m = 111 m²</title></rect>
+    <rect class="zone t-attacking" x="80.5" y="43.16" width="8" height="11"><title>28 · A2-RH · 8 × 11 m = 88 m²</title></rect>
+    <rect class="zone t-attacking" x="80.5" y="34" width="8" height="9.16"><title>29 · A2-RC · 8 × 9.16 m = 73 m²</title></rect>
+    <rect class="zone t-attacking" x="80.5" y="24.84" width="8" height="9.16"><title>30 · A2-LC · 8 × 9.16 m = 73 m²</title></rect>
+    <rect class="zone t-attacking" x="80.5" y="13.84" width="8" height="11"><title>31 · A2-LH · 8 × 11 m = 88 m²</title></rect>
+    <rect class="zone t-attacking" x="80.5" y="0" width="8" height="13.84"><title>32 · A2-L · 8 × 13.84 m = 111 m²</title></rect>
+    <rect class="zone t-attacking" x="88.5" y="54.16" width="5.5" height="13.84"><title>33 · A3-R · 5.5 × 13.84 m = 76 m²</title></rect>
+    <rect class="zone t-attacking" x="88.5" y="43.16" width="5.5" height="11"><title>34 · A3-RH · 5.5 × 11 m = 60 m²</title></rect>
+    <rect class="zone t-attacking" x="88.5" y="34" width="5.5" height="9.16"><title>35 · A3-RC · 5.5 × 9.16 m = 50 m²</title></rect>
+    <rect class="zone t-attacking" x="88.5" y="24.84" width="5.5" height="9.16"><title>36 · A3-LC · 5.5 × 9.16 m = 50 m²</title></rect>
+    <rect class="zone t-attacking" x="88.5" y="13.84" width="5.5" height="11"><title>37 · A3-LH · 5.5 × 11 m = 60 m²</title></rect>
+    <rect class="zone t-attacking" x="88.5" y="0" width="5.5" height="13.84"><title>38 · A3-L · 5.5 × 13.84 m = 76 m²</title></rect>
+    <rect class="zone t-attacking" x="94" y="54.16" width="5.5" height="13.84"><title>39 · A4-R · 5.5 × 13.84 m = 76 m²</title></rect>
+    <rect class="zone t-attacking" x="94" y="43.16" width="5.5" height="11"><title>40 · A4-RH · 5.5 × 11 m = 60 m²</title></rect>
+    <rect class="zone t-attacking" x="94" y="34" width="5.5" height="9.16"><title>41 · A4-RC · 5.5 × 9.16 m = 50 m²</title></rect>
+    <rect class="zone t-attacking" x="94" y="24.84" width="5.5" height="9.16"><title>42 · A4-LC · 5.5 × 9.16 m = 50 m²</title></rect>
+    <rect class="zone t-attacking" x="94" y="13.84" width="5.5" height="11"><title>43 · A4-LH · 5.5 × 11 m = 60 m²</title></rect>
+    <rect class="zone t-attacking" x="94" y="0" width="5.5" height="13.84"><title>44 · A4-L · 5.5 × 13.84 m = 76 m²</title></rect>
+    <rect class="zone t-attacking" x="99.5" y="54.16" width="5.5" height="13.84"><title>45 · A5-R · 5.5 × 13.84 m = 76 m²</title></rect>
+    <rect class="zone t-attacking" x="99.5" y="43.16" width="5.5" height="11"><title>46 · A5-RH · 5.5 × 11 m = 60 m²</title></rect>
+    <rect class="zone t-attacking" x="99.5" y="34" width="5.5" height="9.16"><title>47 · A5-RC · 5.5 × 9.16 m = 50 m²</title></rect>
+    <rect class="zone t-attacking" x="99.5" y="24.84" width="5.5" height="9.16"><title>48 · A5-LC · 5.5 × 9.16 m = 50 m²</title></rect>
+    <rect class="zone t-attacking" x="99.5" y="13.84" width="5.5" height="11"><title>49 · A5-LH · 5.5 × 11 m = 60 m²</title></rect>
+    <rect class="zone t-attacking" x="99.5" y="0" width="5.5" height="13.84"><title>50 · A5-L · 5.5 × 13.84 m = 76 m²</title></rect>
+    <g class="lines">
+    <rect x="0" y="0" width="105" height="68" rx="1.5"/>
+    <line x1="52.5" y1="0" x2="52.5" y2="68"/>
+    <circle cx="52.5" cy="34" r="9.15"/>
+    <rect x="0" y="13.84" width="16.5" height="40.32"/>
+    <rect x="0" y="24.84" width="5.5" height="18.32"/>
+    <path d="M 16.5 26.6875 A 9.15 9.15 0 0 1 16.5 41.3125"/>
+    <rect x="88.5" y="13.84" width="16.5" height="40.32"/>
+    <rect x="99.5" y="24.84" width="5.5" height="18.32"/>
+    <path d="M 88.5 26.6875 A 9.15 9.15 0 0 0 88.5 41.3125"/>
+    </g>
+    <text class="zlabel" x="8.25" y="54.37" font-size="2.20">D1-R</text><text class="zlabel l-area" x="8.25" y="57.12" font-size="1.87">410 m²</text>
+    <text class="zlabel" x="8.25" y="32.79" font-size="2.20">D1-C</text><text class="zlabel l-area" x="8.25" y="35.54" font-size="1.87">302 m²</text>
+    <text class="zlabel" x="8.25" y="11.21" font-size="2.20">D1-L</text><text class="zlabel l-area" x="8.25" y="13.96" font-size="1.87">410 m²</text>
+    <text class="zlabel" x="25.75" y="54.37" font-size="2.20">D2-R</text><text class="zlabel l-area" x="25.75" y="57.12" font-size="1.87">460 m²</text>
+    <text class="zlabel" x="25.75" y="32.79" font-size="2.20">D2-C</text><text class="zlabel l-area" x="25.75" y="35.54" font-size="1.87">339 m²</text>
+    <text class="zlabel" x="25.75" y="11.21" font-size="2.20">D2-L</text><text class="zlabel l-area" x="25.75" y="13.96" font-size="1.87">460 m²</text>
+    <text class="zlabel" x="43.75" y="59.87" font-size="2.20">M1-R</text><text class="zlabel l-area" x="43.75" y="62.62" font-size="1.87">242 m²</text>
+    <text class="zlabel" x="43.75" y="47.45" font-size="2.20">M1-RH</text><text class="zlabel l-area" x="43.75" y="50.20" font-size="1.87">192 m²</text>
+    <text class="zlabel" x="43.75" y="32.79" font-size="2.20">M1-C</text><text class="zlabel l-area" x="43.75" y="35.54" font-size="1.87">321 m²</text>
+    <text class="zlabel" x="43.75" y="18.13" font-size="2.20">M1-LH</text><text class="zlabel l-area" x="43.75" y="20.88" font-size="1.87">192 m²</text>
+    <text class="zlabel" x="43.75" y="5.71" font-size="2.20">M1-L</text><text class="zlabel l-area" x="43.75" y="8.46" font-size="1.87">242 m²</text>
+    <text class="zlabel" x="57.75" y="59.87" font-size="2.20">M2-R</text><text class="zlabel l-area" x="57.75" y="62.62" font-size="1.87">145 m²</text>
+    <text class="zlabel" x="57.75" y="47.45" font-size="2.20">M2-RH</text><text class="zlabel l-area" x="57.75" y="50.20" font-size="1.87">116 m²</text>
+    <text class="zlabel" x="57.75" y="32.79" font-size="2.20">M2-C</text><text class="zlabel l-area" x="57.75" y="35.54" font-size="1.87">192 m²</text>
+    <text class="zlabel" x="57.75" y="18.13" font-size="2.20">M2-LH</text><text class="zlabel l-area" x="57.75" y="20.88" font-size="1.87">116 m²</text>
+    <text class="zlabel" x="57.75" y="5.71" font-size="2.20">M2-L</text><text class="zlabel l-area" x="57.75" y="8.46" font-size="1.87">145 m²</text>
+    <text class="zlabel" x="67.5" y="59.87" font-size="2.20">M3-R</text><text class="zlabel l-area" x="67.5" y="62.62" font-size="1.87">125 m²</text>
+    <text class="zlabel" x="67.5" y="47.45" font-size="2.20">M3-RH</text><text class="zlabel l-area" x="67.5" y="50.20" font-size="1.87">99 m²</text>
+    <text class="zlabel" x="67.5" y="32.79" font-size="2.20">M3-C</text><text class="zlabel l-area" x="67.5" y="35.54" font-size="1.87">165 m²</text>
+    <text class="zlabel" x="67.5" y="18.13" font-size="2.20">M3-LH</text><text class="zlabel l-area" x="67.5" y="20.88" font-size="1.87">99 m²</text>
+    <text class="zlabel" x="67.5" y="5.71" font-size="2.20">M3-L</text><text class="zlabel l-area" x="67.5" y="8.46" font-size="1.87">125 m²</text>
+    <text class="zlabel" x="76.25" y="59.87" font-size="2.20">A1-R</text><text class="zlabel l-area" x="76.25" y="62.62" font-size="1.87">118 m²</text>
+    <text class="zlabel" x="76.25" y="47.45" font-size="2.20">A1-RH</text><text class="zlabel l-area" x="76.25" y="50.20" font-size="1.87">94 m²</text>
+    <text class="zlabel" x="76.25" y="37.37" font-size="2.20">A1-RC</text><text class="zlabel l-area" x="76.25" y="40.12" font-size="1.87">78 m²</text>
+    <text class="zlabel" x="76.25" y="28.21" font-size="2.20">A1-LC</text><text class="zlabel l-area" x="76.25" y="30.96" font-size="1.87">78 m²</text>
+    <text class="zlabel" x="76.25" y="18.13" font-size="2.20">A1-LH</text><text class="zlabel l-area" x="76.25" y="20.88" font-size="1.87">94 m²</text>
+    <text class="zlabel" x="76.25" y="5.71" font-size="2.20">A1-L</text><text class="zlabel l-area" x="76.25" y="8.46" font-size="1.87">118 m²</text>
+    <text class="zlabel" x="84.5" y="59.87" font-size="2.20">A2-R</text><text class="zlabel l-area" x="84.5" y="62.62" font-size="1.87">111 m²</text>
+    <text class="zlabel" x="84.5" y="47.50" font-size="2.12">A2-RH</text><text class="zlabel l-area" x="84.5" y="50.14" font-size="1.80">88 m²</text>
+    <text class="zlabel" x="84.5" y="37.42" font-size="2.12">A2-RC</text><text class="zlabel l-area" x="84.5" y="40.06" font-size="1.80">73 m²</text>
+    <text class="zlabel" x="84.5" y="28.26" font-size="2.12">A2-LC</text><text class="zlabel l-area" x="84.5" y="30.90" font-size="1.80">73 m²</text>
+    <text class="zlabel" x="84.5" y="18.18" font-size="2.12">A2-LH</text><text class="zlabel l-area" x="84.5" y="20.82" font-size="1.80">88 m²</text>
+    <text class="zlabel" x="84.5" y="5.71" font-size="2.20">A2-L</text><text class="zlabel l-area" x="84.5" y="8.46" font-size="1.87">111 m²</text>
+    <text class="zlabel" x="91.25" y="60.08" font-size="1.82">A3-R</text><text class="zlabel l-area" x="91.25" y="62.35" font-size="1.55">76 m²</text>
+    <text class="zlabel" x="91.25" y="47.86" font-size="1.46">A3-RH</text><text class="zlabel l-area" x="91.25" y="49.68" font-size="1.24">60 m²</text>
+    <text class="zlabel" x="91.25" y="37.78" font-size="1.46">A3-RC</text><text class="zlabel l-area" x="91.25" y="39.60" font-size="1.24">50 m²</text>
+    <text class="zlabel" x="91.25" y="28.62" font-size="1.46">A3-LC</text><text class="zlabel l-area" x="91.25" y="30.44" font-size="1.24">50 m²</text>
+    <text class="zlabel" x="91.25" y="18.54" font-size="1.46">A3-LH</text><text class="zlabel l-area" x="91.25" y="20.36" font-size="1.24">60 m²</text>
+    <text class="zlabel" x="91.25" y="5.92" font-size="1.82">A3-L</text><text class="zlabel l-area" x="91.25" y="8.19" font-size="1.55">76 m²</text>
+    <text class="zlabel" x="96.75" y="60.08" font-size="1.82">A4-R</text><text class="zlabel l-area" x="96.75" y="62.35" font-size="1.55">76 m²</text>
+    <text class="zlabel" x="96.75" y="47.86" font-size="1.46">A4-RH</text><text class="zlabel l-area" x="96.75" y="49.68" font-size="1.24">60 m²</text>
+    <text class="zlabel" x="96.75" y="37.78" font-size="1.46">A4-RC</text><text class="zlabel l-area" x="96.75" y="39.60" font-size="1.24">50 m²</text>
+    <text class="zlabel" x="96.75" y="28.62" font-size="1.46">A4-LC</text><text class="zlabel l-area" x="96.75" y="30.44" font-size="1.24">50 m²</text>
+    <text class="zlabel" x="96.75" y="18.54" font-size="1.46">A4-LH</text><text class="zlabel l-area" x="96.75" y="20.36" font-size="1.24">60 m²</text>
+    <text class="zlabel" x="96.75" y="5.92" font-size="1.82">A4-L</text><text class="zlabel l-area" x="96.75" y="8.19" font-size="1.55">76 m²</text>
+    <text class="zlabel" x="102.25" y="60.08" font-size="1.82">A5-R</text><text class="zlabel l-area" x="102.25" y="62.35" font-size="1.55">76 m²</text>
+    <text class="zlabel" x="102.25" y="47.86" font-size="1.46">A5-RH</text><text class="zlabel l-area" x="102.25" y="49.68" font-size="1.24">60 m²</text>
+    <text class="zlabel" x="102.25" y="37.78" font-size="1.46">A5-RC</text><text class="zlabel l-area" x="102.25" y="39.60" font-size="1.24">50 m²</text>
+    <text class="zlabel" x="102.25" y="28.62" font-size="1.46">A5-LC</text><text class="zlabel l-area" x="102.25" y="30.44" font-size="1.24">50 m²</text>
+    <text class="zlabel" x="102.25" y="18.54" font-size="1.46">A5-LH</text><text class="zlabel l-area" x="102.25" y="20.36" font-size="1.24">60 m²</text>
+    <text class="zlabel" x="102.25" y="5.92" font-size="1.82">A5-L</text><text class="zlabel l-area" x="102.25" y="8.19" font-size="1.55">76 m²</text>
+      </svg>
+    </div>
+    <div class="direction">Attacking direction → · left touchline at the top, matching the viewer</div>
+
+    <table>
+      <thead><tr><th>Tier</th><th>Along the pitch</th><th>Columns × bands</th>
+                 <th>Column depths</th><th>Zone size</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td><span class="dot" style="background:#2f6fd0"></span>Defensive</td><td>0–35 m</td><td>2 × 3 = 6</td><td>16.5 / 18.5 m</td><td>302–460 m²</td><td>broad blocks, wings merged into the centre</td></tr>
+        <tr><td><span class="dot" style="background:#f2b53a"></span>Middle</td><td>35–72 m</td><td>3 × 5 = 15</td><td>17.5 / 10.5 / 9 m</td><td>99–321 m²</td><td>wings and half-spaces split out</td></tr>
+        <tr><td><span class="dot" style="background:#e3342f"></span>Attacking</td><td>72–105 m</td><td>5 × 6 = 30</td><td>8.5 / 8 / 5.5 / 5.5 / 5.5 m</td><td>50–118 m²</td><td>finest; centre split down the middle, box sliced every 5.5 m</td></tr>
+      </tbody>
+    </table>
+
+    <ul class="notes">
+      <li>Column edges sit on real markings: <code>16.5</code> own box, <code>52.5</code> halfway,
+          <code>88.5</code> opposition box, <code>99.5</code> six-yard line.</li>
+      <li>Band edges are the box widths: <code>13.84 / 54.16</code> penalty box,
+          <code>24.84 / 43.16</code> six-yard box, so bands read as wing, half-space and centre.</li>
+      <li>Bands nest: every defensive edge is also a middle edge, and every middle edge is also an
+          attacking edge, so a zone never straddles a coarser one.</li>
+    </ul>
+  </div>
+</main>
+<script>
+  for (const [id, cls] of [["labels", "no-labels"], ["areas", "no-areas"]]) {
+    const box = document.getElementById(id);
+    box.addEventListener("change", () => document.body.classList.toggle(cls, !box.checked));
+  }
+</script>
+</body>
+</html>
