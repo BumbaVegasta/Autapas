@@ -1,10 +1,21 @@
-"""Non-uniform pitch zones: coarse at the back, fine in the attacking box.
+"""Pitch zones for heatmap comparison, mirrored left/right and coarsened at the back.
 
-The 101x101 grid is finer than the data deserves and treats a metre near the
-own corner flag as seriously as a metre on the penalty spot.  These zones do
-the opposite: they get smaller the closer you get to the goal being attacked,
-so two strikers are compared on where they are inside the box, while two
-centre-backs are not split apart by noise in their own half.
+Columns run the length of the pitch (x): the defensive half is 3 equal 17.5 m
+columns, a 4th 17.5 m column sits right at the start of the attacking half, and
+the rest of the pitch is 6 equal columns -- the closer to goal, the more of
+them a heatmap needs to place a player accurately.
+
+Every column has the same 3 lateral bands (y), not 5: a player's left and
+right sides are folded together before comparing, because which flank a
+winger favours isn't the question -- how central or wide he plays is. So a
+column contributes a wing share (both touchlines), a half-space share (both
+half-spaces) and a centre share, not five separate numbers.
+
+The defensive tier is coarsened all the way: its 3 columns x 3 bands collapse
+into a single zone. Defenders' heatmaps are dominated by which third and side
+of their own half they cover, not by centimetre-level shape back there, and
+folding it into one zone stops it from crowding out the attacking detail the
+comparison actually cares about.
 
 Attacking direction is left -> right (+x).  y = 0 is the player's RIGHT
 touchline, matching the raw data and the viewer.
@@ -16,59 +27,83 @@ import os
 PITCH_W, PITCH_H = 105.0, 68.0  # metres
 GRID = 101                      # data coords are 0-100 inclusive
 
-# Column edges along the pitch.  They get shorter towards the attacked goal and
-# land on real markings: 16.5 box, 52.5 halfway, 88.5 box, 99.5 six-yard line.
-COLUMN_EDGES = [0, 16.5, 35, 52.5, 63, 72, 80.5, 88.5, 94, 99.5, 105]
+# Columns along the pitch. The defensive half (0-52.5) is 3 equal columns; a
+# 4th, the same width, starts right at the halfway line; the rest of the
+# pitch (52.5 more columns worth of narrowing) shrinks fastest going forward.
+N_ATTACK = 6
+_D_W = 52.5 / 3        # 17.5 m
+_A_W = 35.0 / N_ATTACK  # 5.833 m
 
-# How wide the lateral bands are depends on the tier the column falls in.
-TIERS = [
-    # name          ends at x   band edges (y, metres)                                     band codes
-    ("defensive", 35.0,  [0, 24.84, 43.16, 68],                          ["R", "C", "L"]),
-    ("middle",    72.0,  [0, 13.84, 24.84, 43.16, 54.16, 68],            ["R", "RH", "C", "LH", "L"]),
-    ("attacking", 105.0, [0, 13.84, 24.84, 34, 43.16, 54.16, 68],        ["R", "RH", "RC", "LC", "LH", "L"]),
+COLUMNS = [
+    ("D1", 0 * _D_W, 1 * _D_W, "defensive"),
+    ("D2", 1 * _D_W, 2 * _D_W, "defensive"),
+    ("D3", 2 * _D_W, 3 * _D_W, "defensive"),
+    ("M1", 3 * _D_W, 3 * _D_W + _D_W, "middle"),
+] + [
+    (f"A{i + 1}", 70.0 + i * _A_W, 70.0 + (i + 1) * _A_W, "attacking")
+    for i in range(N_ATTACK)
 ]
-# 13.84 / 54.16 are the penalty-box edges, 24.84 / 43.16 the six-yard-box edges.
+
+# Lateral bands, the same for every column -- edges on the real box markings
+# (13.84/54.16 penalty box, matching the project's long-standing numbers) --
+# but pulled in 1 m each side from the original 24.84/43.16 six-yard-box
+# edges, so the centre band reads a bit wider and the half-spaces a bit
+# narrower than the pure box geometry.
+BAND_EDGES = [0, 13.84, 23.84, 44.16, 54.16, 68]
+# (band name, the bucket it mirrors into) -- R and L both feed "RL", RH and
+# LH both feed "H"; a column ends up with 3 features, not 5.
+BANDS = [("R", "RL"), ("RH", "H"), ("C", "C"), ("LH", "H"), ("L", "RL")]
 
 TIER_CODE = {"defensive": "D", "middle": "M", "attacking": "A"}
-BAND_NAMES = {
-    "R": "right", "L": "left", "C": "centre",
-    "RH": "right half-space", "LH": "left half-space",
-    "RC": "right centre", "LC": "left centre",
+TIER_FILL = {"defensive": "#2f6fd0", "middle": "#f2b53a", "attacking": "#e3342f"}
+TIER_BLURB = {
+    "defensive": "one zone for the whole defensive third, both sides folded in",
+    "middle": "the transition column right after halfway, mirrored L/R",
+    "attacking": "6 columns, each mirrored L/R -- finest where shots come from",
 }
 
 
-def tier_for(x_end):
-    """The tier a column belongs to, chosen by where the column ends."""
-    for tier in TIERS:
-        if x_end <= tier[1] + 1e-9:
-            return tier
-    raise ValueError(x_end)
-
-
 def build_zones():
-    """Every zone, in a fixed order.  The index is the position in the feature vector."""
+    """Every physical rectangle the grid can land in (`ZONES`), and the
+    coarser buckets the similarity maths actually compares (`GROUPS`).
+
+    A defensive rectangle's group is "D-ALL", shared by all 3 defensive
+    columns and all 3 bands. Everywhere else the group is "<column>-<bucket>",
+    e.g. "A1-H" for A1's two half-space bands -- mirrored, not merged further.
+    """
     zones = []
-    tier_col_no = {}
-    for x0, x1 in zip(COLUMN_EDGES, COLUMN_EDGES[1:]):
-        tier_name, _, band_edges, band_codes = tier_for(x1)
-        col_no = tier_col_no[tier_name] = tier_col_no.get(tier_name, 0) + 1
-        col_code = f"{TIER_CODE[tier_name]}{col_no}"
-        for (y0, y1), band in zip(zip(band_edges, band_edges[1:]), band_codes):
+    for col, x0, x1, tier in COLUMNS:
+        for (y0, y1), (band, bucket) in zip(zip(BAND_EDGES, BAND_EDGES[1:]), BANDS):
+            group = "D-ALL" if tier == "defensive" else f"{col}-{bucket}"
             zones.append({
-                "index": len(zones),
-                "name": f"{col_code}-{band}",
-                "tier": tier_name,
+                "name": f"{col}-{band}", "group": group, "tier": tier,
+                "col": col, "band": band, "bucket": bucket,
                 "x0": x0, "x1": x1, "y0": y0, "y1": y1,
                 "area": (x1 - x0) * (y1 - y0),
             })
-    return zones
+
+    group_order, group_area, group_tier = [], {}, {}
+    for z in zones:
+        g = z["group"]
+        if g not in group_area:
+            group_order.append(g)
+            group_area[g] = 0.0
+            group_tier[g] = z["tier"]
+        group_area[g] += z["area"]
+    group_index = {g: i for i, g in enumerate(group_order)}
+    for z in zones:
+        z["index"] = group_index[z["group"]]
+
+    groups = [{"name": g, "index": group_index[g], "tier": group_tier[g], "area": group_area[g]}
+              for g in group_order]
+    return zones, groups
 
 
-ZONES = build_zones()
+ZONES, GROUPS = build_zones()
 
 
 def zone_of(x_m, y_m):
-    """Index of the zone containing a point in metres (edges belong to the lower zone)."""
+    """Model-group index (0..len(GROUPS)-1) for a point in metres."""
     for z in ZONES:
         if z["x0"] <= x_m < z["x1"] and z["y0"] <= y_m < z["y1"]:
             return z["index"]
@@ -76,7 +111,8 @@ def zone_of(x_m, y_m):
 
 
 def grid_zone_map():
-    """101x101 array [x, y] -> zone index, so a raw grid can be summed into zones."""
+    """101x101 array [x, y] -> model-group index, so a raw grid can be summed
+    straight into GROUPS."""
     import numpy as np
     out = np.empty((GRID, GRID), dtype=np.int16)
     for gx in range(GRID):
@@ -91,13 +127,6 @@ def grid_zone_map():
 # --- visualisation -----------------------------------------------------------
 
 OUT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "heatmap_viewer", "zones.html")
-
-TIER_FILL = {"defensive": "#2f6fd0", "middle": "#f2b53a", "attacking": "#e3342f"}
-TIER_BLURB = {
-    "defensive": "broad blocks, wings merged into the centre",
-    "middle": "wings and half-spaces split out",
-    "attacking": "finest; centre split down the middle, box sliced every 5.5 m",
-}
 
 
 def svg_pitch_lines():
@@ -120,23 +149,38 @@ def svg_pitch_lines():
 
 
 def svg_zones():
-    """Zone rectangles plus a two-line label, shrunk to fit the narrow attacking cells."""
-    cells, labels = [], []
+    """Zone rectangles plus a two-line label per group, one label even when a
+    group covers several rectangles (the defensive block, the mirrored pairs)."""
+    cells = []
     for z in ZONES:
         w, h = z["x1"] - z["x0"], z["y1"] - z["y0"]
-        # y = 0 is the player's right touchline, which the viewer draws at the bottom
         top = PITCH_H - z["y1"]
+        group = GROUPS[z["index"]]
         cells.append(
             f'<rect class="zone t-{z["tier"]}" x="{z["x0"]:g}" y="{top:g}" width="{w:g}" height="{h:g}">'
-            f'<title>{z["index"]} · {z["name"]} · {w:g} × {h:g} m = {z["area"]:.0f} m²</title></rect>')
+            f'<title>{group["name"]} · {group["area"]:.0f} m²</title></rect>')
 
-        area = f'{z["area"]:.0f} m²'
-        # ~0.68 em per character for this font at weight 600
-        size = min(2.2, h * 0.3, w * 0.9 / (len(z["name"]) * 0.68))
-        cx, cy = z["x0"] + w / 2, top + h / 2
+    labels = []
+    for g in GROUPS:
+        members = [z for z in ZONES if z["index"] == g["index"]]
+        # A mirrored L/R pair shares one column (same x0/x1), so its bounding
+        # box centres on the mirror axis -- exactly where its sibling bucket's
+        # box also centres. Anchor those on the first member's own rectangle
+        # instead. A group that isn't mirrored within a column (a lone centre
+        # band, or the defensive block spanning several columns) keeps the
+        # full bounding box -- nothing else occupies that space.
+        if len({(z["x0"], z["x1"]) for z in members}) == 1 and len(members) > 1:
+            members = members[:1]
+        x0 = min(z["x0"] for z in members); x1 = max(z["x1"] for z in members)
+        y0 = min(z["y0"] for z in members); y1 = max(z["y1"] for z in members)
+        w, h = x1 - x0, y1 - y0
+        top = PITCH_H - y1
+        area = f'{g["area"]:.0f} m²'
+        size = min(2.6, h * 0.28, w * 0.9 / (len(g["name"]) * 0.62))
+        cx, cy = x0 + w / 2, top + h / 2
         labels.append(
             f'<text class="zlabel" x="{cx:g}" y="{cy - size * 0.55:.2f}" font-size="{size:.2f}">'
-            f'{z["name"]}</text>'
+            f'{g["name"]}</text>'
             f'<text class="zlabel l-area" x="{cx:g}" y="{cy + size * 0.7:.2f}" '
             f'font-size="{size * 0.85:.2f}">{area}</text>')
     return "\n    ".join(cells), "\n    ".join(labels)
@@ -144,15 +188,13 @@ def svg_zones():
 
 def summary_rows():
     rows = []
-    for tier_name, _, _, band_codes in TIERS:
-        zs = [z for z in ZONES if z["tier"] == tier_name]
-        cols = sorted({(z["x0"], z["x1"]) for z in zs})
-        depths = " / ".join(f"{b - a:g}" for a, b in cols)
+    for tier_name in ("defensive", "middle", "attacking"):
+        gs = [g for g in GROUPS if g["tier"] == tier_name]
+        areas = sorted(g["area"] for g in gs)
         rows.append(
             f'<tr><td><span class="dot" style="background:{TIER_FILL[tier_name]}"></span>'
-            f'{tier_name.title()}</td><td>{cols[0][0]:g}–{cols[-1][1]:g} m</td>'
-            f'<td>{len(cols)} × {len(band_codes)} = {len(zs)}</td><td>{depths} m</td>'
-            f'<td>{min(z["area"] for z in zs):.0f}–{max(z["area"] for z in zs):.0f} m²</td>'
+            f'{tier_name.title()}</td><td>{len(gs)}</td>'
+            f'<td>{areas[0]:.0f}–{areas[-1]:.0f} m²</td>'
             f'<td>{TIER_BLURB[tier_name]}</td></tr>')
     return "\n        ".join(rows)
 
@@ -160,12 +202,12 @@ def summary_rows():
 def render():
     from string import Template
     cells, labels = svg_zones()
+    areas = sorted(g["area"] for g in GROUPS)
     html = Template(HTML).substitute(
         zones=cells, labels=labels, lines=svg_pitch_lines(), rows=summary_rows(),
-        total=len(ZONES),
-        smallest=f"{min(z['area'] for z in ZONES):.0f}",
-        largest=f"{max(z['area'] for z in ZONES):.0f}",
-        ratio=f"{max(z['area'] for z in ZONES) / min(z['area'] for z in ZONES):.1f}",
+        total=len(GROUPS),
+        smallest=f"{areas[0]:.0f}",
+        largest=f"{areas[-1]:.0f}",
     )
     with open(OUT_FILE, "w") as f:
         f.write(html)
@@ -215,8 +257,9 @@ HTML = """<!doctype html>
 <body>
 <main>
   <h1>Pitch zones for heatmap comparison</h1>
-  <p class="sub">$total zones. They shrink towards the goal being attacked, from
-     $largest m² at the back to $smallest m² in the box — ${ratio}× more precision where it matters.</p>
+  <p class="sub">$total zones. The whole defensive third is one zone; everywhere else is mirrored
+     left/right, so a wing or half-space value is shared by both flanks. Sizes run
+     $smallest–$largest m².</p>
 
   <div class="card">
     <div class="head">
@@ -238,20 +281,24 @@ HTML = """<!doctype html>
     <div class="direction">Attacking direction → · left touchline at the top, matching the viewer</div>
 
     <table>
-      <thead><tr><th>Tier</th><th>Along the pitch</th><th>Columns × bands</th>
-                 <th>Column depths</th><th>Zone size</th><th>Why</th></tr></thead>
+      <thead><tr><th>Tier</th><th>Zones</th><th>Zone size</th><th>What it is</th></tr></thead>
       <tbody>
         $rows
       </tbody>
     </table>
 
     <ul class="notes">
-      <li>Column edges sit on real markings: <code>16.5</code> own box, <code>52.5</code> halfway,
-          <code>88.5</code> opposition box, <code>99.5</code> six-yard line.</li>
-      <li>Band edges are the box widths: <code>13.84 / 54.16</code> penalty box,
-          <code>24.84 / 43.16</code> six-yard box, so bands read as wing, half-space and centre.</li>
-      <li>Bands nest: every defensive edge is also a middle edge, and every middle edge is also an
-          attacking edge, so a zone never straddles a coarser one.</li>
+      <li><b>Defensive collapse:</b> D1, D2, D3 (3 columns x 3 bands = 9 rectangles) all feed one
+          feature, <code>D-ALL</code> -- the whole defensive third, 3570 m².</li>
+      <li><b>Mirroring:</b> every other column's wing bands (R+L) and half-space bands (RH+LH) are
+          summed together before comparing, so e.g. <code>A1-H</code> is A1's right AND left
+          half-space combined -- one number, not two.</li>
+      <li>Column edges: 3 equal 17.5 m columns cover the defensive half; a 4th 17.5 m column (M1)
+          starts right at halfway; the remaining 35 m split into 6 equal 5.83 m columns (A1-A6).</li>
+      <li>Band edges: wings stay at the penalty-box line (<code>13.84</code> m each side); the
+          half-space/centre edge sits 1 m inside the six-yard line (<code>23.84</code> m each
+          side), so the centre band (<code>20.32</code> m) reads a touch wider than the box
+          (<code>18.32</code> m) and the half-spaces (<code>10</code> m) a touch narrower.</li>
     </ul>
   </div>
 </main>
@@ -268,4 +315,4 @@ HTML = """<!doctype html>
 
 if __name__ == "__main__":
     path = render()
-    print(f"{len(ZONES)} zones -> {path}")
+    print(f"{len(GROUPS)} groups (from {len(ZONES)} rectangles) -> {path}")
