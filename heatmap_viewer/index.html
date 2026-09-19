@@ -45,6 +45,8 @@
     padding: 8px 10px;
   }
   button { cursor: pointer; }
+  button[disabled] { opacity: 0.4; cursor: default; }
+  button[disabled]:hover { border-color: var(--border); }
 
   .search { position: relative; display: flex; flex-direction: column; gap: 4px; }
   .search label { display: block; }
@@ -100,8 +102,10 @@
   .direction { text-align: center; color: var(--muted); font-size: 12px; margin-top: 6px; }
 
   .similar { margin-top: 16px; }
+  .similar-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; }
   .similar h2 { font-size: 16px; font-weight: 600; margin: 0 0 2px; }
-  .similar-sub { color: var(--muted); font-size: 12px; margin: 0 0 14px; }
+  .similar-sub { color: var(--muted); font-size: 12px; margin: 0 0 14px; max-width: 60ch; }
+  .similar-sub a { color: inherit; }
   .similar-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
   .sim-card {
     display: flex; flex-direction: column; gap: 6px; text-align: left;
@@ -140,12 +144,12 @@
         <div class="player-meta" id="meta"></div>
       </div>
       <div class="actions">
-        <div class="toggle" role="group" aria-label="Heatmap style">
-          <button id="mode-smooth" data-mode="smooth">Smooth</button>
-          <button id="mode-grid" data-mode="grid">Grid</button>
+        <div class="toggle" role="group" aria-label="View">
+          <button id="mode-blur" data-mode="blur" title="Smoothed density, 2.5 m">Blur</button>
+          <button id="mode-points" data-mode="points" title="Every recorded cell, coloured by touch count">Points</button>
         </div>
-        <button id="prev" title="Previous player (←)">← Prev</button>
-        <button id="next" title="Next player (→)">Next →</button>
+        <button id="prev" title="Back to the player you were just on (←)">← Back</button>
+        <button id="next" title="Forward again (→)">Forward →</button>
       </div>
     </div>
     <div class="stats" id="stats"></div>
@@ -157,8 +161,18 @@
   </div>
 
   <section class="card similar">
-    <h2>Most similar heatmaps</h2>
-    <p class="similar-sub">Players whose touches are spread across the pitch in the most similar way, from all leagues.</p>
+    <div class="similar-head">
+      <div>
+        <h2>Most similar heatmaps</h2>
+        <p class="similar-sub" id="similar-sub"></p>
+      </div>
+      <div class="toggle" role="group" aria-label="Comparison method">
+        <!-- the value stays "cells" because that is what the comparison reads; the
+             label says Blur because that is how these matches are drawn -->
+        <button id="method-cells" data-method="cells" title="Compare all 101 × 101 cells directly, shown blurred">Blur</button>
+        <button id="method-zones" data-method="zones" title="Compare the 51 graduated zones, per m²">Zones</button>
+      </div>
+    </div>
     <div class="similar-grid" id="similar"></div>
   </section>
 </main>
@@ -173,13 +187,22 @@ const LEAGUES = {
   superlig: "Süper Lig",
 };
 const PITCH_W = 105, PITCH_H = 68, GRID = 101; // data coords are 0–100 inclusive
-const COLOR_VARS = ["--c1", "--c2", "--c3", "--c4"];
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-// Smooth mode: density raster at 5 px per metre, Gaussian blob per point
+// Blur view: density raster at 5 px per metre, Gaussian blob per point.
+// It is a way of looking only — no comparison ever uses the blurred values.
 const HEAT_W = 525, HEAT_H = 340;
 const SIGMA_M = 2.5;
 const HEAT_PERCENTILE = 0.99;
+
+const COLOR_VARS = ["--c1", "--c2", "--c3", "--c4"];
+
+// How the matches are found, and how their thumbnails are drawn. Separate from
+// the map view above: looking at a season and comparing two are different jobs.
+const METHODS = {
+  zones: "51 zones that shrink towards the goal being attacked, compared per m². Sharper for attacking players, steadier for defenders.",
+  cells: "All 101 × 101 grid cells compared directly, every square metre counting the same. Raw cells rarely coincide, so a strong match scores around 20%.",
+};
 
 const $ = (id) => document.getElementById(id);
 const titleCase = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -192,8 +215,14 @@ let players = [];
 let playersById = new Map();
 let filtered = [];
 let current = null; // { player, points }
-let mode = "smooth";
-try { mode = localStorage.getItem("heatmap-mode") || mode; } catch {}
+let mode = "blur";     // blur | points — the map on the player card
+let method = "zones";  // zones | cells — how the matches below are found
+try {
+  const m = localStorage.getItem("heatmap-mode"), c = localStorage.getItem("similar-method");
+  if (m === "blur" || m === "points") mode = m;
+  if (METHODS[c]) method = c;
+} catch {}
+let zoneDefs = null;   // filled from /api/zones
 
 function setOptions(select, values, labelFn, allLabel) {
   const prev = select.value;
@@ -351,10 +380,10 @@ function showStatus(msg) {
 const toPitchX = (x) => (x / GRID) * PITCH_W;
 const toPitchY = (y) => ((100 - y) / GRID) * PITCH_H;
 
-function drawGrid(heat, points) {
+function drawPoints(heat, points) {
   const cw = PITCH_W / GRID, ch = PITCH_H / GRID;
   const frag = document.createDocumentFragment();
-  // draw low counts first so red sits on top
+  // draw low counts first so the busiest cells sit on top
   for (const p of [...points].sort((a, b) => a.count - b.count)) {
     const r = document.createElementNS(SVG_NS, "rect");
     r.setAttribute("x", toPitchX(p.x));
@@ -363,10 +392,50 @@ function drawGrid(heat, points) {
     r.setAttribute("height", ch);
     r.setAttribute("fill", `var(${COLOR_VARS[Math.min(p.count, 4) - 1]})`);
     const t = document.createElementNS(SVG_NS, "title");
-    t.textContent = `x ${p.x}, y ${p.y} · count ${p.count}`;
+    t.textContent = `x ${p.x}, y ${p.y} · ${p.count} touch${p.count > 1 ? "es" : ""}`;
     r.appendChild(t);
     frag.appendChild(r);
   }
+  heat.appendChild(frag);
+}
+
+// Same maths the comparison uses: sum counts per zone, then divide by the zone's
+// area so a 50 m² slice of the box isn't drowned by a 460 m² block at the back.
+function zoneDensities(points) {
+  const totals = new Array(zoneDefs.length).fill(0);
+  for (const p of points) {
+    const xm = ((p.x + 0.5) / GRID) * PITCH_W, ym = ((p.y + 0.5) / GRID) * PITCH_H;
+    const i = zoneDefs.findIndex((z) => xm >= z.x0 && xm < z.x1 && ym >= z.y0 && ym < z.y1);
+    if (i !== -1) totals[i] += p.count;
+  }
+  const sum = totals.reduce((a, b) => a + b, 0) || 1;
+  return totals.map((t, i) => ({ share: t / sum, density: t / sum / zoneDefs[i].area, touches: t }));
+}
+
+function drawZones(heat, points) {
+  if (!zoneDefs) return;
+  const vals = zoneDensities(points);
+  const max = Math.max(...vals.map((v) => v.density)) || 1;
+  const ramp = (rampCache ??= buildRamp());
+  const frag = document.createDocumentFragment();
+  zoneDefs.forEach((z, i) => {
+    // linear: the ramp's own alpha fade keeps quiet zones dark, the way the blur view reads
+    const t = vals[i].density / max;
+    const o = Math.min(Math.round(t * 255), 255) * 4;
+    const r = document.createElementNS(SVG_NS, "rect");
+    r.setAttribute("x", z.x0);
+    r.setAttribute("y", PITCH_H - z.y1);          // y = 0 is the player's right touchline
+    r.setAttribute("width", z.x1 - z.x0);
+    r.setAttribute("height", z.y1 - z.y0);
+    r.setAttribute("fill", `rgb(${ramp[o]},${ramp[o + 1]},${ramp[o + 2]})`);
+    r.setAttribute("fill-opacity", ramp[o + 3] / 255);
+    r.setAttribute("stroke", "var(--panel)");
+    r.setAttribute("stroke-width", 0.15);
+    const title = document.createElementNS(SVG_NS, "title");
+    title.textContent = `${z.name} · ${vals[i].touches} touches · ${(vals[i].share * 100).toFixed(1)}% of season · ${Math.round(z.area)} m²`;
+    r.appendChild(title);
+    frag.appendChild(r);
+  });
   heat.appendChild(frag);
 }
 
@@ -435,13 +504,13 @@ function drawSmooth(heat, points, heatW = HEAT_W) {
 }
 
 function render() {
-  for (const b of document.querySelectorAll(".toggle button")) b.setAttribute("aria-pressed", b.dataset.mode === mode);
-  $("legend").innerHTML = mode === "grid"
-    ? COLOR_VARS.map((v, i) => `<span><span class="swatch" style="background:var(${v})"></span>count ${i + 1}${i === 3 ? "+" : ""}</span>`).join("")
+  for (const b of document.querySelectorAll("[data-mode]")) b.setAttribute("aria-pressed", b.dataset.mode === mode);
+  $("legend").innerHTML = mode === "points"
+    ? COLOR_VARS.map((v, i) => `<span><span class="swatch" style="background:var(${v})"></span>${i + 1}${i === 3 ? "+" : ""} touch${i ? "es" : ""}</span>`).join("")
     : `<span>Low</span><span class="ramp"></span><span>High</span>`;
   if (!current) return;
   const heat = drawPitch();
-  (mode === "grid" ? drawGrid : drawSmooth)(heat, current.points);
+  (mode === "points" ? drawPoints : drawSmooth)(heat, current.points);
 }
 
 function parseCsv(text) {
@@ -461,9 +530,34 @@ function fetchPoints(file) {
   return pointsCache.get(file);
 }
 
+// the players actually viewed, in order, with `at` pointing at the current one
+let history = [];
+let at = -1;
+
+function pushHistory(file) {
+  if (history[at] === file) return;
+  history = history.slice(0, at + 1);   // a new pick drops anything forward of here
+  history.push(file);
+  at = history.length - 1;
+}
+
+function updateNav() {
+  $("prev").disabled = at <= 0;
+  $("next").disabled = at >= history.length - 1;
+}
+
+function step(dir) {
+  const next = at + dir;
+  if (next < 0 || next >= history.length) return;
+  at = next;
+  loadPlayer(history[at], true);
+}
+
 let loadToken = 0;
-async function loadPlayer(file) {
+async function loadPlayer(file, fromHistory) {
   const token = ++loadToken;
+  if (!fromHistory) pushHistory(file);
+  updateNav();
   $("player").value = file;
   const p = players.find((x) => x.file === file);
   loadSimilar(p, token);
@@ -481,24 +575,28 @@ async function loadPlayer(file) {
   $("stats").innerHTML =
     stat(p.season_minutes, "season minutes") +
     stat(points.length, "grid points") +
-    n.map((c, i) => stat(c, `count ${i + 1}${i === 3 ? "+" : ""}`, COLOR_VARS[i])).join("");
+    n.map((c, i) => stat(c, `cells with ${i + 1}${i === 3 ? "+" : ""}`, COLOR_VARS[i])).join("");
 
   render();
 }
 
 const THUMB_W = 210; // thumbnail raster width, px
+
 async function loadSimilar(p, token) {
   const box = $("similar");
   box.innerHTML = "";
+  $("similar-sub").textContent = METHODS[method];
+  for (const b of document.querySelectorAll("[data-method]")) b.setAttribute("aria-pressed", b.dataset.method === method);
   let matches;
   try {
-    const res = await fetch(`/api/similar/${encodeURIComponent(p.player_id)}`);
+    const res = await fetch(`/api/similar/${encodeURIComponent(p.player_id)}?method=${method}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     matches = await res.json();
   } catch (err) {
     console.error("Failed to load similar players:", err);
     if (token === loadToken) {
-      box.innerHTML = `<p class="similar-empty">No similarity data. Run <code>python3 scripts/build_similar.py</code> and restart the server.</p>`;
+      const script = method === "zones" ? "build_similar_zones.py" : "build_similar.py";
+      box.innerHTML = `<p class="similar-empty">No similarity data for this method. Run <code>python3 scripts/${script}</code> and restart the server.</p>`;
     }
     return;
   }
@@ -526,18 +624,18 @@ async function loadSimilar(p, token) {
     const svg = card.querySelector("svg");
     const heat = drawPitch(svg);
     fetchPoints(q.file).then((points) => {
-      if (token === loadToken) drawSmooth(heat, points, THUMB_W);
+      if (token !== loadToken) return;
+      if (method === "zones") drawZones(heat, points);
+      else drawSmooth(heat, points, THUMB_W);
     });
   }
 }
 
-function step(dir) {
-  if (!filtered.length) return;
-  const i = filtered.findIndex((p) => p.file === $("player").value);
-  loadPlayer(filtered[(i + dir + filtered.length) % filtered.length].file);
-}
-
 async function init() {
+  fetch("/api/zones")
+    .then((r) => r.json())
+    .then((z) => { zoneDefs = z; if (method === "zones" && current) loadSimilar(current.player, loadToken); })
+    .catch((err) => console.error("Failed to load /api/zones:", err));
   try {
     const res = await fetch("/api/players");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -561,11 +659,20 @@ async function init() {
   $("player").addEventListener("change", (e) => loadPlayer(e.target.value));
   $("prev").addEventListener("click", () => step(-1));
   $("next").addEventListener("click", () => step(1));
-  for (const b of document.querySelectorAll(".toggle button")) {
+  for (const b of document.querySelectorAll("[data-mode]")) {
     b.addEventListener("click", () => {
+      if (mode === b.dataset.mode) return;
       mode = b.dataset.mode;
       try { localStorage.setItem("heatmap-mode", mode); } catch {}
       render();
+    });
+  }
+  for (const b of document.querySelectorAll("[data-method]")) {
+    b.addEventListener("click", () => {
+      if (method === b.dataset.method) return;
+      method = b.dataset.method;
+      try { localStorage.setItem("similar-method", method); } catch {}
+      if (current) loadSimilar(current.player, loadToken);
     });
   }
   document.addEventListener("keydown", (e) => {
