@@ -9,8 +9,11 @@ borussiamonchengladbach,Borussia Monchengladbach,bundesliga
 darmstadt,Darmstadt,bundesliga
 eintrachtfrankfurt,Eintracht Frankfurt,bundesliga
 fcheidenheim,FC Heidenheim,bundesliga
+fcstpauli,FC St. Pauli,bundesliga
 freiburg,Freiburg,bundesliga
+hamburgersv,Hamburger SV,bundesliga
 hoffenheim,Hoffenheim,bundesliga
+holsteinkiel,Holstein Kiel,bundesliga
 mainz05,Mainz 05,bundesliga
 rbleipzig,RB Leipzig,bundesliga
 unionberlin,Union Berlin,bundesliga
@@ -24,19 +27,27 @@ barcelona,Barcelona,laliga
 cadiz,Cadiz,laliga
 celtavigo,Celta Vigo,laliga
 deportivoalaves,Deportivo Alaves,laliga
+elche,Elche,laliga
+espanyol,Espanyol,laliga
 getafe,Getafe,laliga
 girona,Girona,laliga
 granada,Granada,laliga
 laspalmas,Las Palmas,laliga
+leganes,Leganes,laliga
+levante,Levante,laliga
 mallorca,Mallorca,laliga
 osasuna,Osasuna,laliga
 rayovallecano,Rayo Vallecano,laliga
 realbetis,Real Betis,laliga
 realmadrid,Real Madrid,laliga
+realoviedo,Real Oviedo,laliga
 realsociedad,Real Sociedad,laliga
+realvalladolid,Real Valladolid,laliga
 sevilla,Sevilla,laliga
 valencia,Valencia,laliga
 villarreal,Villarreal,laliga
+angers,Angers,ligue1
+auxerre,Auxerre,ligue1
 brest,Brest,ligue1
 clermontfoot,Clermont Foot,ligue1
 lehavre,Le Havre,ligue1
@@ -50,9 +61,11 @@ monaco,Monaco,ligue1
 montpellier,Montpellier,ligue1
 nantes,Nantes,ligue1
 nice,Nice,ligue1
+parisfc,Paris FC,ligue1
 parissaintgermain,Paris Saint-Germain,ligue1
 reims,Reims,ligue1
 rennes,Rennes,ligue1
+stetienne,Saint-Etienne,ligue1
 strasbourg,Strasbourg,ligue1
 toulouse,Toulouse,ligue1
 afcbournemouth,AFC Bournemouth,premierleague
@@ -65,6 +78,9 @@ chelsea,Chelsea,premierleague
 crystalpalace,Crystal Palace,premierleague
 everton,Everton,premierleague
 fulham,Fulham,premierleague
+ipswichtown,Ipswich Town,premierleague
+leedsunited,Leeds United,premierleague
+leicestercity,Leicester City,premierleague
 liverpool,Liverpool,premierleague
 lutontown,Luton Town,premierleague
 manchestercity,Manchester City,premierleague
@@ -72,12 +88,16 @@ manchesterunited,Manchester United,premierleague
 newcastleunited,Newcastle United,premierleague
 nottinghamforest,Nottingham Forest,premierleague
 sheffieldunited,Sheffield United,premierleague
+southampton,Southampton,premierleague
+sunderland,Sunderland,premierleague
 tottenhamhotspur,Tottenham Hotspur,premierleague
 westhamunited,West Ham United,premierleague
 wolverhamptonwanderers,Wolverhampton Wanderers,premierleague
 atalanta,Atalanta,seriea
 bologna,Bologna,seriea
 cagliari,Cagliari,seriea
+como,Como,seriea
+cremonese,Cremonese,seriea
 empoli,Empoli,seriea
 fiorentina,Fiorentina,seriea
 frosinone,Frosinone,seriea
@@ -90,26 +110,34 @@ lecce,Lecce,seriea
 milan,Milan,seriea
 monza,Monza,seriea
 napoli,Napoli,seriea
+parma,Parma,seriea
+pisa,Pisa,seriea
 roma,Roma,seriea
 salernitana,Salernitana,seriea
 sassuolo,Sassuolo,seriea
 torino,Torino,seriea
 udinese,Udinese,seriea
+venezia,Venezia,seriea
 adanademirspor,Adana Demirspor,superlig
 alanyaspor,Alanyaspor,superlig
 ankaragucu,Ankaragucu,superlig
 antalyaspor,Antalyaspor,superlig
 basaksehir,Basaksehir,superlig
 besiktas,Besiktas,superlig
+bodrumspor,Bodrumspor,superlig
 caykurrizespor,Caykur Rizespor,superlig
+eyupspor,Eyupspor,superlig
 fatihkaragumruk,Fatih Karagumruk,superlig
 fenerbahce,Fenerbahce,superlig
 galatasaray,Galatasaray,superlig
 gaziantep,Gaziantep,superlig
+genclerbirligi,Genclerbirligi,superlig
+goztepe,Goztepe,superlig
 hatayspor,Hatayspor,superlig
 istanbulspor,Istanbulspor,superlig
 kasimpasa,Kasimpasa,superlig
 kayserispor,Kayserispor,superlig
+kocaelispor,Kocaelispor,superlig
 konyaspor,Konyaspor,superlig
 pendikspor,Pendikspor,superlig
 samsunspor,Samsunspor,superlig
