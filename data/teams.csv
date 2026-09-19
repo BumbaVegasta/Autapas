@@ -1,0 +1,117 @@
+team,team_name,league
+1fckoln,1. FC Koln,bundesliga
+augsburg,Augsburg,bundesliga
+bayerleverkusen,Bayer Leverkusen,bundesliga
+bayernmunchen,Bayern Munchen,bundesliga
+bochum,Bochum,bundesliga
+borussiadortmund,Borussia Dortmund,bundesliga
+borussiamonchengladbach,Borussia Monchengladbach,bundesliga
+darmstadt,Darmstadt,bundesliga
+eintrachtfrankfurt,Eintracht Frankfurt,bundesliga
+fcheidenheim,FC Heidenheim,bundesliga
+freiburg,Freiburg,bundesliga
+hoffenheim,Hoffenheim,bundesliga
+mainz05,Mainz 05,bundesliga
+rbleipzig,RB Leipzig,bundesliga
+unionberlin,Union Berlin,bundesliga
+vfbstuttgart,VfB Stuttgart,bundesliga
+werderbremen,Werder Bremen,bundesliga
+wolfsburg,Wolfsburg,bundesliga
+almeria,Almeria,laliga
+athleticclub,Athletic Club,laliga
+atleticomadrid,Atletico Madrid,laliga
+barcelona,Barcelona,laliga
+cadiz,Cadiz,laliga
+celtavigo,Celta Vigo,laliga
+deportivoalaves,Deportivo Alaves,laliga
+getafe,Getafe,laliga
+girona,Girona,laliga
+granada,Granada,laliga
+laspalmas,Las Palmas,laliga
+mallorca,Mallorca,laliga
+osasuna,Osasuna,laliga
+rayovallecano,Rayo Vallecano,laliga
+realbetis,Real Betis,laliga
+realmadrid,Real Madrid,laliga
+realsociedad,Real Sociedad,laliga
+sevilla,Sevilla,laliga
+valencia,Valencia,laliga
+villarreal,Villarreal,laliga
+brest,Brest,ligue1
+clermontfoot,Clermont Foot,ligue1
+lehavre,Le Havre,ligue1
+lens,Lens,ligue1
+lille,Lille,ligue1
+lorient,Lorient,ligue1
+lyon,Lyon,ligue1
+marseille,Marseille,ligue1
+metz,Metz,ligue1
+monaco,Monaco,ligue1
+montpellier,Montpellier,ligue1
+nantes,Nantes,ligue1
+nice,Nice,ligue1
+parissaintgermain,Paris Saint-Germain,ligue1
+reims,Reims,ligue1
+rennes,Rennes,ligue1
+strasbourg,Strasbourg,ligue1
+toulouse,Toulouse,ligue1
+afcbournemouth,AFC Bournemouth,premierleague
+arsenal,Arsenal,premierleague
+astonvilla,Aston Villa,premierleague
+brentford,Brentford,premierleague
+brightonhovealbion,Brighton & Hove Albion,premierleague
+burnley,Burnley,premierleague
+chelsea,Chelsea,premierleague
+crystalpalace,Crystal Palace,premierleague
+everton,Everton,premierleague
+fulham,Fulham,premierleague
+liverpool,Liverpool,premierleague
+lutontown,Luton Town,premierleague
+manchestercity,Manchester City,premierleague
+manchesterunited,Manchester United,premierleague
+newcastleunited,Newcastle United,premierleague
+nottinghamforest,Nottingham Forest,premierleague
+sheffieldunited,Sheffield United,premierleague
+tottenhamhotspur,Tottenham Hotspur,premierleague
+westhamunited,West Ham United,premierleague
+wolverhamptonwanderers,Wolverhampton Wanderers,premierleague
+atalanta,Atalanta,seriea
+bologna,Bologna,seriea
+cagliari,Cagliari,seriea
+empoli,Empoli,seriea
+fiorentina,Fiorentina,seriea
+frosinone,Frosinone,seriea
+genoa,Genoa,seriea
+hellasverona,Hellas Verona,seriea
+inter,Inter,seriea
+juventus,Juventus,seriea
+lazio,Lazio,seriea
+lecce,Lecce,seriea
+milan,Milan,seriea
+monza,Monza,seriea
+napoli,Napoli,seriea
+roma,Roma,seriea
+salernitana,Salernitana,seriea
+sassuolo,Sassuolo,seriea
+torino,Torino,seriea
+udinese,Udinese,seriea
+adanademirspor,Adana Demirspor,superlig
+alanyaspor,Alanyaspor,superlig
+ankaragucu,Ankaragucu,superlig
+antalyaspor,Antalyaspor,superlig
+basaksehir,Basaksehir,superlig
+besiktas,Besiktas,superlig
+caykurrizespor,Caykur Rizespor,superlig
+fatihkaragumruk,Fatih Karagumruk,superlig
+fenerbahce,Fenerbahce,superlig
+galatasaray,Galatasaray,superlig
+gaziantep,Gaziantep,superlig
+hatayspor,Hatayspor,superlig
+istanbulspor,Istanbulspor,superlig
+kasimpasa,Kasimpasa,superlig
+kayserispor,Kayserispor,superlig
+konyaspor,Konyaspor,superlig
+pendikspor,Pendikspor,superlig
+samsunspor,Samsunspor,superlig
+sivasspor,Sivasspor,superlig
+trabzonspor,Trabzonspor,superlig
