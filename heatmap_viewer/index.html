@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Player Heatmaps 23/24</title>
+<title>Player Heatmaps</title>
 <style>
   :root {
     --bg: #111111;
@@ -122,8 +122,8 @@
 </head>
 <body>
 <main>
-  <h1>Player Heatmaps · 2023/24</h1>
-  <p class="sub">Players with 1000+ minutes.</p>
+  <h1>Player Heatmaps</h1>
+  <p class="sub">Players with 1000+ minutes, 23/24 through 25/26.</p>
 
   <div class="controls">
     <div class="search">
@@ -134,6 +134,7 @@
     </div>
     <label>League <select id="league"></select></label>
     <label>Team <select id="team"></select></label>
+    <label>Season <select id="season"></select></label>
     <label>Player <select id="player"></select></label>
   </div>
 
@@ -170,7 +171,7 @@
         <!-- the value stays "cells" because that is what the comparison reads; the
              label says Blur because that is how these matches are drawn -->
         <button id="method-cells" data-method="cells" title="Compare all 101 × 101 cells directly, shown blurred">Blur</button>
-        <button id="method-zones" data-method="zones" title="Compare the 51 graduated zones, per m²">Zones</button>
+        <button id="method-zones" data-method="zones" title="Compare the 22 mirrored zones, per m²">Zones</button>
       </div>
     </div>
     <div class="similar-grid" id="similar"></div>
@@ -200,7 +201,7 @@ const COLOR_VARS = ["--c1", "--c2", "--c3", "--c4"];
 // How the matches are found, and how their thumbnails are drawn. Separate from
 // the map view above: looking at a season and comparing two are different jobs.
 const METHODS = {
-  zones: "51 zones that shrink towards the goal being attacked, compared per m². Sharper for attacking players, steadier for defenders.",
+  zones: "22 zones, compared per m²: the whole defensive third is one zone, everywhere else is mirrored left/right and finer towards goal. Sharper for attacking players, near-identical for most defenders.",
   cells: "All 101 × 101 grid cells compared directly, every square metre counting the same. Raw cells rarely coincide, so a strong match scores around 20%.",
 };
 
@@ -232,7 +233,7 @@ function setOptions(select, values, labelFn, allLabel) {
   if ([...select.options].some((o) => o.value === prev)) select.value = prev;
 }
 
-// `selected` (optional): a player to jump to — league/team filters follow it
+// `selected` (optional): a player to jump to — league/team/season filters follow it
 function refreshFilters(selected) {
   if (selected) $("league").value = selected.league;
   const league = $("league").value;
@@ -241,10 +242,13 @@ function refreshFilters(selected) {
   setOptions($("team"), teams, (t) => teamNames.get(t), "All teams");
   if (selected) $("team").value = selected.team;
   const team = $("team").value;
+  if (selected) $("season").value = selected.season;
+  const season = $("season").value;
 
-  filtered = players.filter((p) => (!league || p.league === league) && (!team || p.team === team));
+  filtered = players.filter((p) => (!league || p.league === league) && (!team || p.team === team)
+    && (!season || p.season === season));
   setOptions($("player"), filtered.map((p) => p.file),
-    (f) => { const p = filtered.find((x) => x.file === f); return `${playerName(p)} (${p.team_name})`; });
+    (f) => { const p = filtered.find((x) => x.file === f); return `${playerName(p)} (${p.team_name}) · ${p.season_label}`; });
   const file = selected?.file || $("player").value || filtered[0]?.file;
   if (file) loadPlayer(file);
   else showStatus("No players match.");
@@ -282,7 +286,7 @@ function renderSuggestions() {
     li.id = `suggestion-${i}`;
     li.innerHTML = `<div class="s-name"></div><div class="s-meta"></div>`;
     li.querySelector(".s-name").textContent = playerName(p);
-    li.querySelector(".s-meta").textContent = `${p.team_name} · ${leagueName(p.league)}`;
+    li.querySelector(".s-meta").textContent = `${p.team_name} · ${leagueName(p.league)} · ${p.season_label}`;
     // mousedown (not click) so the input's blur doesn't close the list first
     li.addEventListener("mousedown", (e) => { e.preventDefault(); chooseSuggestion(i); });
     li.addEventListener("mousemove", () => highlightSuggestion(i));
@@ -399,17 +403,26 @@ function drawPoints(heat, points) {
   heat.appendChild(frag);
 }
 
-// Same maths the comparison uses: sum counts per zone, then divide by the zone's
-// area so a 50 m² slice of the box isn't drowned by a 460 m² block at the back.
+// Same maths the comparison uses: sum counts per GROUP (several rectangles can
+// share one group -- the whole defensive third, or a mirrored L/R pair), then
+// divide by the group's area so a 118 m² attacking slice isn't drowned by the
+// 3570 m² defensive block.
 function zoneDensities(points) {
-  const totals = new Array(zoneDefs.length).fill(0);
+  const nGroups = 1 + Math.max(...zoneDefs.map((z) => z.group_index));
+  const totals = new Array(nGroups).fill(0);
   for (const p of points) {
     const xm = ((p.x + 0.5) / GRID) * PITCH_W, ym = ((p.y + 0.5) / GRID) * PITCH_H;
-    const i = zoneDefs.findIndex((z) => xm >= z.x0 && xm < z.x1 && ym >= z.y0 && ym < z.y1);
-    if (i !== -1) totals[i] += p.count;
+    const z = zoneDefs.find((z) => xm >= z.x0 && xm < z.x1 && ym >= z.y0 && ym < z.y1);
+    if (z) totals[z.group_index] += p.count;
   }
   const sum = totals.reduce((a, b) => a + b, 0) || 1;
-  return totals.map((t, i) => ({ share: t / sum, density: t / sum / zoneDefs[i].area, touches: t }));
+  // one entry per physical rectangle, reading its shared group's total --
+  // both halves of a mirrored pair (or all 9 defensive rectangles) show the
+  // same share/density, because that's the one number they're compared on
+  return zoneDefs.map((z) => {
+    const t = totals[z.group_index];
+    return { share: t / sum, density: t / sum / z.group_area, touches: t };
+  });
 }
 
 function drawZones(heat, points) {
@@ -432,7 +445,7 @@ function drawZones(heat, points) {
     r.setAttribute("stroke", "var(--panel)");
     r.setAttribute("stroke-width", 0.15);
     const title = document.createElementNS(SVG_NS, "title");
-    title.textContent = `${z.name} · ${vals[i].touches} touches · ${(vals[i].share * 100).toFixed(1)}% of season · ${Math.round(z.area)} m²`;
+    title.textContent = `${z.group} · ${vals[i].touches} touches · ${(vals[i].share * 100).toFixed(1)}% of season · ${Math.round(z.group_area)} m²`;
     r.appendChild(title);
     frag.appendChild(r);
   });
@@ -566,7 +579,7 @@ async function loadPlayer(file, fromHistory) {
   current = { player: p, points };
 
   $("name").textContent = playerName(p);
-  $("meta").textContent = `${p.team_name} · ${leagueName(p.league)}`;
+  $("meta").textContent = `${p.team_name} · ${leagueName(p.league)} · ${p.season_label}`;
 
   const n = [0, 0, 0, 0];
   for (const pt of points) n[Math.min(pt.count, 4) - 1]++;
@@ -589,7 +602,7 @@ async function loadSimilar(p, token) {
   for (const b of document.querySelectorAll("[data-method]")) b.setAttribute("aria-pressed", b.dataset.method === method);
   let matches;
   try {
-    const res = await fetch(`/api/similar/${encodeURIComponent(p.player_id)}?method=${method}`);
+    const res = await fetch(`/api/similar/${encodeURIComponent(p.player_season_id)}?method=${method}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     matches = await res.json();
   } catch (err) {
@@ -603,7 +616,7 @@ async function loadSimilar(p, token) {
   if (token !== loadToken) return;
 
   for (const m of matches) {
-    const q = playersById.get(m.player_id);
+    const q = playersById.get(m.player_season_id);
     if (!q) continue;
     const card = document.createElement("button");
     card.className = "sim-card";
@@ -614,7 +627,7 @@ async function loadSimilar(p, token) {
       <div class="sim-meta"></div>`;
     card.querySelector(".sim-name").textContent = `${m.rank}. ${playerName(q)}`;
     card.querySelector(".sim-score").textContent = `${(m.similarity * 100).toFixed(1)}%`;
-    card.querySelector(".sim-meta").textContent = `${q.team_name} · ${leagueName(q.league)}`;
+    card.querySelector(".sim-meta").textContent = `${q.team_name} · ${leagueName(q.league)} · ${q.season_label}`;
     card.addEventListener("click", () => {
       $("search").value = "";
       refreshFilters(q);
@@ -647,11 +660,14 @@ async function init() {
   players = players
     .map((p) => ({ ...p, searchName: normalize(`${p.first_name} ${p.last_name}`) }))
     .sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
-  playersById = new Map(players.map((p) => [p.player_id, p]));
+  playersById = new Map(players.map((p) => [p.player_season_id, p]));
   const leagues = Object.keys(LEAGUES).filter((l) => players.some((p) => p.league === l));
   setOptions($("league"), leagues, leagueName, "All leagues");
   $("league").addEventListener("change", () => { $("team").value = ""; refreshFilters(); });
   $("team").addEventListener("change", () => refreshFilters());
+  const seasonLabels = new Map(players.map((p) => [p.season, p.season_label]));
+  setOptions($("season"), [...seasonLabels.keys()].sort(), (s) => seasonLabels.get(s), "All seasons");
+  $("season").addEventListener("change", () => refreshFilters());
   $("search").addEventListener("input", renderSuggestions);
   $("search").addEventListener("focus", () => $("search").value.trim() && renderSuggestions());
   $("search").addEventListener("keydown", onSearchKeydown);
