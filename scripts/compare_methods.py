@@ -74,14 +74,14 @@ def find(roster, players, query, seasons):
     return sorted(candidates, key=lambda r: r["season"])
 
 
-def report(players, players_by_id, rankings, r):
+def report(players, players_by_id, teams, rankings, r):
     pid = r["player_season_id"]
     minutes = S.season_minutes(r["path"])
     if minutes is None:
         p = players.get(r["player_id"])
         minutes = p["season_minutes"] if p else "?"
-    print(f'\n{name_of(players, r)} — {r["team"]} · {LEAGUES.get(r["league"], r["league"])} '
-          f'· {S.SEASON_LABEL[r["season"]]} · {minutes} min')
+    print(f'\n{name_of(players, r)} — {teams.get(r["team"], r["team"])} · '
+          f'{LEAGUES.get(r["league"], r["league"])} · {S.SEASON_LABEL[r["season"]]} · {minutes} min')
 
     cells, zones = (rankings[m].get(pid, []) for m in ("cells", "zones"))
     if not cells or not zones:
@@ -122,6 +122,7 @@ def main():
 
     roster = S.list_player_seasons()
     players = S.players_lookup()
+    teams = S.teams_lookup()
     players_by_id = {}
     for r in roster:
         players_by_id.setdefault(r["player_id"], []).append(r)
@@ -131,7 +132,7 @@ def main():
         rows = find(roster, players, query, seasons)
         if rows:
             for r in rows:
-                report(players, players_by_id, rankings, r)
+                report(players, players_by_id, teams, rankings, r)
 
 
 if __name__ == "__main__":
