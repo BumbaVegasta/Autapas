@@ -98,6 +98,22 @@
   .pitch-wrap { overflow-x: auto; }
   svg.pitch { display: block; width: 100%; min-width: 520px; height: auto; }
   .direction { text-align: center; color: var(--muted); font-size: 12px; margin-top: 6px; }
+
+  .similar { margin-top: 16px; }
+  .similar h2 { font-size: 16px; font-weight: 600; margin: 0 0 2px; }
+  .similar-sub { color: var(--muted); font-size: 12px; margin: 0 0 14px; }
+  .similar-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+  .sim-card {
+    display: flex; flex-direction: column; gap: 6px; text-align: left;
+    background: #202020; border: 1px solid var(--border); border-radius: 8px; padding: 10px;
+  }
+  .sim-card:hover { border-color: var(--muted); }
+  .sim-card svg { display: block; width: 100%; height: auto; }
+  .sim-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .sim-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sim-score { font-variant-numeric: tabular-nums; color: var(--c1); font-weight: 600; }
+  .sim-meta { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .similar-empty { color: var(--muted); }
 </style>
 </head>
 <body>
@@ -139,6 +155,12 @@
     </div>
     <div class="direction">Attacking direction →</div>
   </div>
+
+  <section class="card similar">
+    <h2>Most similar heatmaps</h2>
+    <p class="similar-sub">Players whose touches are spread across the pitch in the most similar way, from all leagues.</p>
+    <div class="similar-grid" id="similar"></div>
+  </section>
 </main>
 
 <script>
@@ -167,6 +189,7 @@ const normalize = (s) => s.normalize("NFD").replace(/[\u0300-\u036f']/g, "").toL
 const cssColor = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 
 let players = [];
+let playersById = new Map();
 let filtered = [];
 let current = null; // { player, points }
 let mode = "smooth";
@@ -288,12 +311,13 @@ function el(tag, attrs, parent) {
   return node;
 }
 
-function drawPitch() {
-  const svg = $("pitch");
+let clipCount = 0;
+function drawPitch(svg = $("pitch")) {
   svg.innerHTML = "";
-  const clip = el("clipPath", { id: "pitch-clip" }, el("defs", {}, svg));
+  const clipId = `pitch-clip-${++clipCount}`;
+  const clip = el("clipPath", { id: clipId }, el("defs", {}, svg));
   el("rect", { x: 0, y: 0, width: PITCH_W, height: PITCH_H, rx: 1.5 }, clip);
-  const heat = el("g", { "clip-path": "url(#pitch-clip)" }, svg);
+  const heat = el("g", { "clip-path": `url(#${clipId})` }, svg);
 
   const lines = el("g", { fill: "none", stroke: "var(--line)", "stroke-width": 0.35 }, svg);
   const midY = PITCH_H / 2;
@@ -364,7 +388,10 @@ function buildRamp() {
   return ramp;
 }
 
-function drawSmooth(heat, points) {
+let rampCache = null;
+// `heatW`: raster width in px — smaller for thumbnails
+function drawSmooth(heat, points, heatW = HEAT_W) {
+  const HEAT_W = heatW, HEAT_H = Math.round((heatW * PITCH_H) / PITCH_W);
   const pxPerM = HEAT_W / PITCH_W;
   const sigma = SIGMA_M * pxPerM, r = Math.ceil(sigma * 3), size = 2 * r + 1;
   const kernel = new Float32Array(size * size);
@@ -393,7 +420,7 @@ function drawSmooth(heat, points) {
   for (const v of field) if (v > peak) peak = v;
   const active = field.filter((v) => v > peak * 0.02).sort();
   const max = active.length ? active[Math.floor(active.length * HEAT_PERCENTILE)] : 0;
-  const ramp = buildRamp();
+  const ramp = (rampCache ??= buildRamp());
   const canvas = document.createElement("canvas");
   canvas.width = HEAT_W;
   canvas.height = HEAT_H;
@@ -426,13 +453,21 @@ function parseCsv(text) {
   });
 }
 
+const pointsCache = new Map();
+function fetchPoints(file) {
+  if (!pointsCache.has(file)) {
+    pointsCache.set(file, fetch(`/data/${encodeURIComponent(file)}`).then((r) => r.text()).then(parseCsv));
+  }
+  return pointsCache.get(file);
+}
+
 let loadToken = 0;
 async function loadPlayer(file) {
   const token = ++loadToken;
   $("player").value = file;
   const p = players.find((x) => x.file === file);
-  const res = await fetch(`/data/${encodeURIComponent(file)}`);
-  const points = parseCsv(await res.text());
+  loadSimilar(p, token);
+  const points = await fetchPoints(file);
   if (token !== loadToken) return;
   current = { player: p, points };
 
@@ -449,6 +484,51 @@ async function loadPlayer(file) {
     n.map((c, i) => stat(c, `count ${i + 1}${i === 3 ? "+" : ""}`, COLOR_VARS[i])).join("");
 
   render();
+}
+
+const THUMB_W = 210; // thumbnail raster width, px
+async function loadSimilar(p, token) {
+  const box = $("similar");
+  box.innerHTML = "";
+  let matches;
+  try {
+    const res = await fetch(`/api/similar/${encodeURIComponent(p.player_id)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    matches = await res.json();
+  } catch (err) {
+    console.error("Failed to load similar players:", err);
+    if (token === loadToken) {
+      box.innerHTML = `<p class="similar-empty">No similarity data. Run <code>python3 scripts/build_similar.py</code> and restart the server.</p>`;
+    }
+    return;
+  }
+  if (token !== loadToken) return;
+
+  for (const m of matches) {
+    const q = playersById.get(m.player_id);
+    if (!q) continue;
+    const card = document.createElement("button");
+    card.className = "sim-card";
+    card.title = `Open ${playerName(q)}`;
+    card.innerHTML = `
+      <svg viewBox="-1 -1 107 70" xmlns="${SVG_NS}"></svg>
+      <div class="sim-top"><span class="sim-name"></span><span class="sim-score"></span></div>
+      <div class="sim-meta"></div>`;
+    card.querySelector(".sim-name").textContent = `${m.rank}. ${playerName(q)}`;
+    card.querySelector(".sim-score").textContent = `${(m.similarity * 100).toFixed(1)}%`;
+    card.querySelector(".sim-meta").textContent = `${q.team_name} · ${leagueName(q.league)}`;
+    card.addEventListener("click", () => {
+      $("search").value = "";
+      refreshFilters(q);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+    box.appendChild(card);
+    const svg = card.querySelector("svg");
+    const heat = drawPitch(svg);
+    fetchPoints(q.file).then((points) => {
+      if (token === loadToken) drawSmooth(heat, points, THUMB_W);
+    });
+  }
 }
 
 function step(dir) {
@@ -469,6 +549,7 @@ async function init() {
   players = players
     .map((p) => ({ ...p, searchName: normalize(`${p.first_name} ${p.last_name}`) }))
     .sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
+  playersById = new Map(players.map((p) => [p.player_id, p]));
   const leagues = Object.keys(LEAGUES).filter((l) => players.some((p) => p.league === l));
   setOptions($("league"), leagues, leagueName, "All leagues");
   $("league").addEventListener("change", () => { $("team").value = ""; refreshFilters(); });

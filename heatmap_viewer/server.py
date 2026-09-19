@@ -14,6 +14,7 @@ DATA_ROOT = os.path.join(HERE, "..", "data")
 DATA_DIR = os.path.join(DATA_ROOT, "heatmaps_1000plus_minutes_2324_raw_data")
 PLAYERS_FILE = os.path.join(DATA_ROOT, "players.csv")
 TEAMS_FILE = os.path.join(DATA_ROOT, "teams.csv")
+SIMILAR_FILE = os.path.join(DATA_ROOT, "similar.csv")  # built by scripts/build_similar.py
 SUFFIX = "_heatmap_2324_raw_data.csv"
 PORT = int(os.environ.get("PORT", 8000))
 
@@ -32,6 +33,15 @@ def list_players():
     } for row in rows]
 
 
+def similar_players(player_id):
+    with open(SIMILAR_FILE, newline="") as f:
+        return [{
+            "player_id": row["similar_player_id"],
+            "rank": int(row["rank"]),
+            "similarity": float(row["similarity"]),
+        } for row in csv.DictReader(f) if row["player_id"] == player_id]
+
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=HERE, **kwargs)
@@ -40,6 +50,11 @@ class Handler(SimpleHTTPRequestHandler):
         path = self.path.split("?", 1)[0]
         if path == "/api/players":
             return self.send_bytes(json.dumps(list_players()).encode(), "application/json")
+        if path.startswith("/api/similar/"):
+            if not os.path.isfile(SIMILAR_FILE):
+                return self.send_error(404, "Run: python3 scripts/build_similar.py")
+            player_id = path[len("/api/similar/"):]
+            return self.send_bytes(json.dumps(similar_players(player_id)).encode(), "application/json")
         if path.startswith("/data/"):
             name = os.path.basename(path[len("/data/"):])
             file_path = os.path.join(DATA_DIR, name)
