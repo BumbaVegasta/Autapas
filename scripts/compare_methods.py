@@ -7,8 +7,9 @@
 Matching is loose: any part of the name or the raw player slug, accents and
 case ignored. A query matching one player across several seasons prints one
 block per season (that's the point -- comparing a player's own seasons is
-exactly what the multi-season data is for); a query matching several
-different players is ambiguous and asks you to be more specific. A * marks a
+exactly what the multi-season data is for), including the seasons they played
+at a different club; a query matching several different players is ambiguous
+and asks you to be more specific. A * marks a
 player the zone method found that the blur method missed.
 
 Run from the repo root.
@@ -53,23 +54,27 @@ def load_ranking(filename, script):
     return out
 
 
-def find(roster, players, query, seasons):
+def find(roster, players, person_of, query, seasons):
     """The player-season row(s) matching `query`: every season of one player if
     the name is unambiguous, or None (after explaining why) if it matches
-    several different players."""
+    several different players.
+
+    Grouping is by person, not by player_id, so a player who changed club
+    still reads as one player -- their seasons just carry different clubs."""
     q = fold(query)
     candidates = [r for r in roster if r["season"] in seasons
                   and (q in fold(name_of(players, r)) or q in fold(r["slug"]))]
     if not candidates:
         print(f'\nNo player matching "{query}".')
         return None
-    people = sorted({r["player_id"] for r in candidates})
-    if len(people) > 1:
-        shown = ", ".join(f"{name_of(players, next(r for r in candidates if r['player_id'] == p))} "
-                           f"({next(r for r in candidates if r['player_id'] == p)['team']})"
-                           for p in people[:8])
-        print(f'\n"{query}" matches {len(people)} players — be more specific: '
-              + shown + ("…" if len(people) > 8 else ""))
+    first = {}
+    for r in candidates:
+        first.setdefault(person_of[r["player_id"]], r)
+    if len(first) > 1:
+        shown = ", ".join(f'{name_of(players, r)} ({r["team"]})'
+                          for _, r in sorted(first.items())[:8])
+        print(f'\n"{query}" matches {len(first)} players — be more specific: '
+              + shown + ("…" if len(first) > 8 else ""))
         return None
     return sorted(candidates, key=lambda r: r["season"])
 
@@ -79,7 +84,7 @@ def report(players, players_by_id, teams, rankings, r):
     minutes = S.season_minutes(r["path"])
     if minutes is None:
         p = players.get(r["player_id"])
-        minutes = p["season_minutes"] if p else "?"
+        minutes = (p and p["season_minutes"]) or "?"
     print(f'\n{name_of(players, r)} — {teams.get(r["team"], r["team"])} · '
           f'{LEAGUES.get(r["league"], r["league"])} · {S.SEASON_LABEL[r["season"]]} · {minutes} min')
 
@@ -123,13 +128,14 @@ def main():
     roster = S.list_player_seasons()
     players = S.players_lookup()
     teams = S.teams_lookup()
+    person_of = S.person_ids(roster)
     players_by_id = {}
     for r in roster:
         players_by_id.setdefault(r["player_id"], []).append(r)
 
     rankings = {m: load_ranking(f, s) for m, f, s in METHODS}
     for query in args.player:
-        rows = find(roster, players, query, seasons)
+        rows = find(roster, players, person_of, query, seasons)
         if rows:
             for r in rows:
                 report(players, players_by_id, teams, rankings, r)

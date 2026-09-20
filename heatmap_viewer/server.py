@@ -31,7 +31,10 @@ def list_players():
         p = players.get(r["player_id"])
         minutes = S.season_minutes(r["path"])
         if minutes is None:
-            minutes = int(p["season_minutes"]) if p else 0
+            # only the 23/24 raw files lack minutes; players.csv carries them
+            # for that season, but a row added from a later season leaves the
+            # column blank, so don't assume it parses
+            minutes = int(p["season_minutes"]) if p and p["season_minutes"] else 0
         out.append({
             "player_id": r["player_id"],
             "player_season_id": r["player_season_id"],
