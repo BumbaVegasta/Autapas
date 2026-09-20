@@ -128,7 +128,7 @@
   <div class="controls">
     <div class="search">
       <label for="search">Search player</label>
-      <input id="search" type="search" placeholder="e.g. Bukayo Saka" autocomplete="off"
+      <input id="search" type="search" placeholder="name, namesurname, club or season" autocomplete="off"
              role="combobox" aria-expanded="false" aria-controls="suggestions" aria-autocomplete="list">
       <ul id="suggestions" class="suggestions" role="listbox" hidden></ul>
     </div>
@@ -260,13 +260,25 @@ let suggestions = [];
 let activeSuggestion = -1;
 
 function searchPlayers(query) {
-  // every typed word must appear in the player's name, e.g. "de bruyne", "saka"
+  // Every typed word must appear somewhere in the player's haystack — their
+  // name, their raw "namesurname" slug, their club, league and season. So
+  // "de bruyne" and "saka" still work, and so do "ardaguler", "sunderland
+  // 25/26" and "kane spurs", which is the only way to reach a player whose
+  // name we couldn't recover from the slug.
   const words = normalize(query).split(/[^a-z0-9]+/).filter(Boolean);
   if (!words.length) return [];
+  // Someone whose name *starts* with what you typed beats someone who merely
+  // contains it, who in turn beats a match on club or season — otherwise
+  // "saka" answers Melihkabasakal before Bukayo Saka.
+  const rank = (p) => {
+    const w = words[0];
+    if (p.searchName.split(" ").some((part) => part.startsWith(w))) return 0;
+    if (p.searchName.includes(w)) return 1;
+    return 2;
+  };
   return players
-    .filter((p) => words.every((w) => p.searchName.includes(w)))
-    // names starting with the typed text first
-    .sort((a, b) => b.searchName.startsWith(words[0]) - a.searchName.startsWith(words[0]))
+    .filter((p) => words.every((w) => p.searchText.includes(w)))
+    .sort((a, b) => rank(a) - rank(b))
     .slice(0, MAX_SUGGESTIONS);
 }
 
@@ -658,8 +670,19 @@ async function init() {
     return showStatus("Couldn't load players. Try restarting the server.");
   }
   players = players
-    .map((p) => ({ ...p, searchName: normalize(`${p.first_name} ${p.last_name}`) }))
-    .sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
+    .map((p) => ({
+      ...p,
+      // the name as shown, which falls back to the slug when we have no name
+      searchName: normalize(playerName(p)),
+      // everything a player can be reached by, so someone we couldn't name is
+      // still findable by slug, club or season
+      searchText: normalize([p.first_name, p.last_name, p.player, p.team_name, p.team,
+        leagueName(p.league), p.league, p.season_label, p.season].join(" ")),
+      // players with no name sort by their slug rather than all clumping first
+      sortKey: normalize(p.last_name || p.player),
+    }))
+    .sort((a, b) => a.sortKey.localeCompare(b.sortKey)
+      || a.first_name.localeCompare(b.first_name));
   playersById = new Map(players.map((p) => [p.player_season_id, p]));
   const leagues = Object.keys(LEAGUES).filter((l) => players.some((p) => p.league === l));
   setOptions($("league"), leagues, leagueName, "All leagues");
